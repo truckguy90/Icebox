@@ -3,626 +3,777 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>아이스박스 - 제주 화물 배차 및 운송장 자동 관제</title>
+  <title>아이스박스 - 제주 화물 실제 도로망 관제 라우터</title>
   
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 아이콘 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Leaflet 지도 라이브러리 -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
-    body { -webkit-tap-highlight-color: transparent; }
-    .touch-btn { touch-action: manipulation; }
-    #map { height: 250px; }
+    body {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .touch-pill {
+      touch-action: manipulation;
+      transition: all 0.15s ease-in-out;
+    }
+    .touch-pill:active {
+      transform: scale(0.95);
+    }
+    #map {
+      height: 250px;
+      border-radius: 1.75rem;
+    }
+    /* 스크롤바 미려화 */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
 
-  <!-- 상단 헤더 -->
-  <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 sticky top-0 z-50 flex justify-between items-center shadow-lg">
-    <div class="flex items-center gap-2">
-      <div class="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 font-black text-sm">
-        <i class="fa-solid fa-box"></i>
+  <!-- 상단 헤더 바 (둥근 디자인) -->
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 sticky top-0 z-50 flex justify-between items-center shadow-lg">
+    <div class="flex items-center gap-2.5">
+      <div class="w-10 h-10 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 font-black text-lg shadow-inner">
+        <i class="fa-solid fa-cube"></i>
       </div>
       <div>
-        <h1 class="font-extrabold text-base text-sky-400 tracking-tight flex items-center gap-1.5">
-          아이스박스 <span class="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded font-normal">노형 권역</span>
-        </h1>
+        <div class="flex items-center gap-1.5">
+          <h1 class="font-extrabold text-base text-sky-400 tracking-tight">아이스박스</h1>
+          <span class="text-[10px] bg-sky-950 text-sky-300 border border-sky-800/80 px-2 py-0.5 rounded-full font-semibold">도로망 실시간</span>
+        </div>
         <p class="text-[11px] text-slate-400 font-mono" id="current-clock">시각 동기화 중...</p>
       </div>
     </div>
     
-    <div class="flex gap-1.5">
-      <label class="touch-btn cursor-pointer bg-sky-600 hover:bg-sky-500 text-white text-xs px-3 py-2 rounded-md font-bold shadow flex items-center gap-1.5">
-        <i class="fa-solid fa-camera"></i>
-        <span>사진 등록</span>
-        <input type="file" id="camera-input" accept="image/*" multiple class="hidden">
-      </label>
-      <button onclick="resetCompletedStatus()" class="touch-btn bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs px-2.5 py-2 rounded-md font-semibold">
-        완료초기화
+    <div class="flex items-center gap-1.5">
+      <!-- 세션 선택 드롭다운 -->
+      <select id="session-select" onchange="switchSession(this.value)" class="touch-pill bg-slate-800 text-slate-200 border border-slate-700 text-xs px-2.5 py-1.5 rounded-full outline-none font-medium">
+        <option value="nohyeong18">오늘 노형동 18건</option>
+        <option value="seogwipo5">서귀포 샘플 5건</option>
+      </select>
+      <button onclick="resetCompletedStatus()" class="touch-pill bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-xs px-3 py-1.5 rounded-full font-semibold">
+        초기화
       </button>
     </div>
   </header>
 
-  <!-- 실시간 운행 요약 통계 -->
-  <section class="bg-slate-900/90 border-b border-slate-800 px-4 py-2.5 grid grid-cols-4 gap-2 text-center text-xs">
-    <div class="bg-slate-950/80 p-2 rounded border border-slate-800">
-      <span class="text-slate-400 block text-[10px]">완료/박스</span>
+  <!-- 실시간 운행 대시보드 (둥글둥글 카드) -->
+  <section class="p-3 grid grid-cols-4 gap-2 text-center text-xs">
+    <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800/90 shadow-sm">
+      <span class="text-slate-400 block text-[10px] font-medium">완료/총박스</span>
       <span id="stat-count" class="text-sm font-black text-emerald-400">0 / 18</span>
     </div>
-    <div class="bg-slate-950/80 p-2 rounded border border-slate-800">
-      <span class="text-slate-400 block text-[10px]">잔여 개소</span>
-      <span id="stat-remaining" class="text-sm font-black text-sky-400">0 곳</span>
+    <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800/90 shadow-sm">
+      <span class="text-slate-400 block text-[10px] font-medium">총 주행거리</span>
+      <span id="stat-total-dist" class="text-sm font-black text-sky-400">0.0 km</span>
     </div>
-    <div class="bg-slate-950/80 p-2 rounded border border-slate-800">
-      <span class="text-slate-400 block text-[10px]">다음 도착</span>
+    <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800/90 shadow-sm">
+      <span class="text-slate-400 block text-[10px] font-medium">다음 도착</span>
       <span id="stat-next-eta" class="text-sm font-black text-amber-400">--:--</span>
     </div>
-    <div class="bg-slate-950/80 p-2 rounded border border-slate-800">
-      <span class="text-slate-400 block text-[10px]">완판 예상</span>
+    <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800/90 shadow-sm">
+      <span class="text-slate-400 block text-[10px] font-medium">완판 예상</span>
       <span id="stat-finish-eta" class="text-sm font-black text-indigo-400">--:--</span>
     </div>
   </section>
 
-  <!-- Leaflet 지도 관제 -->
-  <section class="relative bg-slate-950 border-b border-slate-800">
-    <div id="map"></div>
-    <button onclick="toggleMapHeight()" class="absolute bottom-2 right-2 z-[1000] bg-slate-900/90 text-slate-300 text-[11px] px-2.5 py-1 rounded border border-slate-700 shadow">
-      <i class="fa-solid fa-map mr-1"></i>지도 펼치기
-    </button>
+  <!-- 도로망 지도 영역 (둥근 모서리) -->
+  <section class="px-3 pb-2 relative">
+    <div class="rounded-3xl overflow-hidden border border-slate-800/90 shadow-lg relative bg-slate-900">
+      <div id="map"></div>
+      <div id="routing-status" class="hidden absolute top-3 left-3 z-[1000] bg-slate-900/90 border border-sky-500/50 text-sky-300 text-[10px] px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+        <i class="fa-solid fa-spinner fa-spin"></i> OSRM 실제 도로망 계산 중...
+      </div>
+      <button onclick="toggleMapHeight()" class="touch-pill absolute bottom-3 right-3 z-[1000] bg-slate-900/90 text-slate-300 text-[11px] px-3 py-1.5 rounded-full border border-slate-700 shadow-md">
+        <i class="fa-solid fa-expand mr-1"></i>지도 토글
+      </button>
+    </div>
   </section>
 
-  <!-- 정렬 및 경로 선택 컨트롤러 -->
-  <div class="px-4 py-2 bg-slate-900/60 flex justify-between items-center border-b border-slate-800 text-xs">
+  <!-- 컨트롤 정렬 바 -->
+  <div class="px-4 py-2 flex justify-between items-center text-xs">
     <div class="flex items-center gap-1.5">
-      <span class="text-slate-400 font-semibold">정렬 모드:</span>
-      <button onclick="sortByRecommendedLoop()" id="btn-sort-course" class="touch-btn px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold">
+      <span class="text-slate-400 text-[11px] font-medium">정렬:</span>
+      <button onclick="sortByRecommendedCourse()" id="btn-sort-course" class="touch-pill px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold">
         추천루프순
       </button>
-      <button onclick="sortByBoxNoAsc()" id="btn-sort-box" class="touch-btn px-2.5 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700 text-[11px]">
+      <button onclick="sortByBoxAsc()" id="btn-sort-box" class="touch-pill px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-medium">
         박스번호순(#)
       </button>
     </div>
-    <button onclick="loadDefaultFull18Data()" class="text-slate-400 hover:text-slate-200 text-[11px] underline">
-      원장 18건 복원
-    </button>
+    <span class="text-[11px] text-slate-500" id="route-type-label">도로망 실거리 기준</span>
   </div>
 
-  <!-- OCR 진행 상태 바 -->
-  <div id="ocr-progress-bar" class="hidden bg-sky-950 border-b border-sky-800 px-4 py-2 text-xs text-sky-300 flex items-center justify-between">
-    <span id="ocr-status-msg"><i class="fa-solid fa-spinner fa-spin mr-2"></i>이미지 OCR 판독 진행 중...</span>
-    <span id="ocr-pct" class="font-mono font-bold">0%</span>
-  </div>
-
-  <!-- 배송 카드 목록 컨테이너 -->
-  <main class="flex-1 p-3 space-y-3 overflow-y-auto" id="card-container">
-    <!-- 동적 카드 주입 영역 -->
+  <!-- 배송지 카드 리스트 -->
+  <main class="flex-1 px-3 space-y-3 pb-8 overflow-y-auto" id="card-list-container">
+    <!-- 동적 카드 렌더링 -->
   </main>
 
   <script>
-    const STORAGE_KEY = "ICEBOX_LOGEN_FULL_V2";
+    // ----------------------------------------------------
+    // 1. 상태 변수 및 세션 정의
+    // ----------------------------------------------------
+    const STORAGE_KEY = "ICEBOX_ROUTING_PRO_STATE";
+    let currentSessionId = "nohyeong18";
     let stops = [];
     let departureTime = "08:30";
     let leafletMap = null;
-    let mapMarkers = [];
-    let polylineRoute = null;
+    let markers = [];
+    let roadPolylineLayer = null;
 
-    // 18개 실물 데이터 기준 원장 정의
-    const INITIAL_18_STOPS = [
-      {
-        id: "stop_1_9",
-        boxNumbers: [1, 9],
-        name: "김*우 (수목원길 묶음)",
-        waybills: ["452-0557-7454", "452-0557-7443"],
-        address: "제주시 수목원길 16-16",
-        detail: "나동 101호",
-        goods: "냉장한우세트",
-        quantity: 2,
-        phone: "010-8211-5683",
-        notes: "1번(2-2) + 9번(2-1) 합포 2박스 동시 하차",
-        lat: 33.4705,
-        lng: 126.4912,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_2",
-        boxNumbers: [2],
-        name: "홍*희",
-        waybills: ["452-0575-8393"],
-        address: "제주시 월랑로4길 43",
-        detail: "광도빌라 나동 101호",
-        goods: "흑태나또",
-        quantity: 1,
-        phone: "010-9487-9487",
-        notes: "월랑마을 주택가 서행",
-        lat: 33.4905,
-        lng: 126.4760,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_3",
-        boxNumbers: [3],
-        name: "김*애",
-        waybills: ["452-0063-3623"],
-        address: "제주시 한라대학로 107",
-        detail: "중흥S클래스 101동 102호",
-        goods: "축산물(고급보자기)",
-        quantity: 1,
-        phone: "010-3694-7001",
-        notes: "단지 정문 통과 후 101동 지상 정차",
-        lat: 33.4735,
-        lng: 126.4710,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_4",
-        boxNumbers: [4],
-        name: "홍성우 (부영 504동)",
-        waybills: ["452-0007-7053"],
-        address: "제주시 과원북2길 12",
-        detail: "부영아파트 504동 803호",
-        goods: "한우 4구",
-        quantity: 1,
-        phone: "010-8632-8632",
-        notes: "5번(505동)과 동일 단지 연계 카트 하차",
-        lat: 33.4835,
-        lng: 126.4840,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_5",
-        boxNumbers: [5],
-        name: "양두원 (부영 505동)",
-        waybills: ["452-0100-3116"],
-        address: "제주시 과원북2길 12",
-        detail: "부영아파트 505동 103호",
-        goods: "차돌박이 구이세트",
-        quantity: 1,
-        phone: "0507-0148-0030",
-        notes: "4번(504동)과 동일 단지 연계 카트 하차",
-        lat: 33.4837,
-        lng: 126.4842,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_6",
-        boxNumbers: [6],
-        name: "우*한",
-        waybills: ["452-0724-3211"],
-        address: "제주시 고사마루길 55-11",
-        detail: "단독주택",
-        goods: "한우 1등급 실속혼합",
-        quantity: 1,
-        phone: "010-9841-5689",
-        notes: "신비로 산간 초입 구간",
-        lat: 33.4652,
-        lng: 126.4785,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_7_10",
-        boxNumbers: [7, 10],
-        name: "돌돌왕십리야채곱창",
-        waybills: ["451-9837-0151", "451-9837-0162"],
-        address: "제주시 남녕로 47",
-        detail: "1층 상가",
-        goods: "냉장육류",
-        quantity: 2,
-        phone: "010-5161-4983",
-        notes: "7번(2-1) + 10번(2-2) 합포 / 착불 8,000원 필히 수령",
-        lat: 33.4845,
-        lng: 126.4795,
-        collectPay: 8000,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_8",
-        boxNumbers: [8],
-        name: "운*",
-        waybills: ["452-0393-3611"],
-        address: "제주시 원노형4길 11",
-        detail: "2층",
-        goods: "수산물선물",
-        quantity: 1,
-        phone: "010-2266-0518",
-        notes: "착불 7,000원 필히 수령",
-        lat: 33.4870,
-        lng: 126.4895,
-        collectPay: 7000,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_11",
-        boxNumbers: [11],
-        name: "참맛나김밥 (이*희)",
-        waybills: ["947-5190-0983"],
-        address: "제주시 한라대학로 31",
-        detail: "1층 상가",
-        goods: "코스트코 이즈니버터 60개",
-        quantity: 1,
-        phone: "0504-2123-5453",
-        notes: "매장 앞 바짝 정차 쾌속 하차",
-        lat: 33.4788,
-        lng: 126.4765,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_12",
-        boxNumbers: [12],
-        name: "Thi *** (한송주택)",
-        waybills: ["452-0109-6043"],
-        address: "제주시 다랑곶7길 4",
-        detail: "한송주택 101호",
-        goods: "베트남식품 4종",
-        quantity: 1,
-        phone: "010-5227-1704",
-        notes: "빌라 1층 현관 하차",
-        lat: 33.4912,
-        lng: 126.4815,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_13",
-        boxNumbers: [13],
-        name: "국밥생각 제주노형점",
-        waybills: ["452-0271-9564"],
-        address: "제주시 과원북4길 17",
-        detail: "1층 상가",
-        goods: "식품가공품",
-        quantity: 1,
-        phone: "010-2744-9614",
-        notes: "매장 앞 직하차",
-        lat: 33.4848,
-        lng: 126.4855,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_14",
-        boxNumbers: [14],
-        name: "김*남 (뜨란채)",
-        waybills: ["452-0320-9472"],
-        address: "제주시 수덕로 44",
-        detail: "뜨란채 203동 902호",
-        goods: "한우 1호 세트",
-        quantity: 1,
-        phone: "010-2689-5380",
-        notes: "아파트 지하/지상 E/V 이용",
-        lat: 33.4860,
-        lng: 126.4740,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_15",
-        boxNumbers: [15],
-        name: "한*욱 (이편한세상시티)",
-        waybills: ["452-0515-1504"],
-        address: "제주시 원노형남1길 11",
-        detail: "오피스텔 717호",
-        goods: "밀싹 600g",
-        quantity: 1,
-        phone: "0507-0151-1968",
-        notes: "오피스텔 고층 E/V 소요 감안",
-        lat: 33.4862,
-        lng: 126.4880,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_16",
-        boxNumbers: [16],
-        name: "김*현 (몽켈락하우스)",
-        waybills: ["452-0724-3152"],
-        address: "제주시 1100로 3047",
-        detail: "4층",
-        goods: "한우 1등급 실속혼합",
-        quantity: 1,
-        phone: "010-2691-8201",
-        notes: "수목원 테마파크 맞은편 주택가",
-        lat: 33.4690,
-        lng: 126.4860,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_17",
-        boxNumbers: [17],
-        name: "청담약국 (뇌*란)",
-        waybills: ["492-9323-5073"],
-        address: "제주시 노형로 378",
-        detail: "1층 101호",
-        goods: "비건포기김치 3kg",
-        quantity: 1,
-        phone: "010-3893-0776",
-        notes: "노형오거리 대로변 1층 쾌속 직하차",
-        lat: 33.4878,
-        lng: 126.4835,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      },
-      {
-        id: "stop_18",
-        boxNumbers: [18],
-        name: "장*연 (노형에코하임)",
-        waybills: ["492-9478-2342"],
-        address: "제주시 도령로 37",
-        detail: "1003호",
-        goods: "소고기/돼지고기 세트",
-        quantity: 1,
-        phone: "010-3892-8887",
-        notes: "대로변 아파트 단지 고층 E/V",
-        lat: 33.4885,
-        lng: 126.4810,
-        collectPay: 0,
-        completed: false,
-        completedAt: null
-      }
-    ];
+    // 세션별 원장 데이터 (18개 노형동 실데이터 포함)
+    const SESSION_DATA = {
+      "nohyeong18": [
+        {
+          id: "s_1_9",
+          boxNos: [1, 9],
+          name: "김*우",
+          address: "제주시 수목원길 16-16",
+          building: "나동 101호",
+          goods: "냉장한우세트",
+          quantity: 2,
+          phone: "010-8211-5683",
+          notes: "1번(2-2) + 9번(2-1) 동일 하차지 2박스 묶음",
+          lat: 33.4705,
+          lng: 126.4912,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_2",
+          boxNos: [2],
+          name: "홍*희",
+          address: "제주시 월랑로4길 43",
+          building: "광도빌라 나동 101호",
+          goods: "흑태나또",
+          quantity: 1,
+          phone: "010-9487-9487",
+          notes: "월랑마을 주택가 안길 서행",
+          lat: 33.4905,
+          lng: 126.4760,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_3",
+          boxNos: [3],
+          name: "김*애",
+          address: "제주시 한라대학로 107",
+          building: "중흥S클래스 101동 102호",
+          goods: "축산물(보자기포장)",
+          quantity: 1,
+          phone: "010-3694-7001",
+          notes: "정문 경비실 통과 지상 101동 정차",
+          lat: 33.4735,
+          lng: 126.4710,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_4",
+          boxNos: [4],
+          name: "홍성우",
+          address: "제주시 과원북2길 12",
+          building: "부영아파트 504동 803호",
+          goods: "한우 4구 세트",
+          quantity: 1,
+          phone: "010-8632-8632",
+          notes: "5번(505동)과 동일 단지 연계 하차",
+          lat: 33.4835,
+          lng: 126.4840,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_5",
+          boxNos: [5],
+          name: "양두원",
+          address: "제주시 과원북2길 12",
+          building: "부영아파트 505동 103호",
+          goods: "차돌박이 구이세트",
+          quantity: 1,
+          phone: "0507-0148-0030",
+          notes: "4번(504동)과 동일 단지 연계 하차",
+          lat: 33.4837,
+          lng: 126.4843,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_6",
+          boxNos: [6],
+          name: "우*한",
+          address: "제주시 고사마루길 55-11",
+          building: "단독주택",
+          goods: "한우 1등급 실속혼합",
+          quantity: 1,
+          phone: "010-9841-5689",
+          notes: "신비로 산간 초입 단독주택",
+          lat: 33.4652,
+          lng: 126.4785,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_7_10",
+          boxNos: [7, 10],
+          name: "돌돌왕십리야채곱창",
+          address: "제주시 남녕로 47",
+          building: "1층",
+          goods: "냉장육류",
+          quantity: 2,
+          phone: "010-5161-4983",
+          notes: "7번(2-1)+10번(2-2) 합포 / 착불 8,000원 수령 필수",
+          lat: 33.4828,
+          lng: 126.4800,
+          payAmount: 8000,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_8",
+          boxNos: [8],
+          name: "운*",
+          address: "제주시 원노형4길 11",
+          building: "2층",
+          goods: "수산물선물",
+          quantity: 1,
+          phone: "010-2266-0518",
+          notes: "착불 7,000원 수령 필수",
+          lat: 33.4870,
+          lng: 126.4895,
+          payAmount: 7000,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_11",
+          boxNos: [11],
+          name: "참맛나김밥(이*희)",
+          address: "제주시 한라대학로 31",
+          building: "1층",
+          goods: "이즈니버터 60개",
+          quantity: 1,
+          phone: "0504-2123-5453",
+          notes: "11:30~13:30 점심 피크 회피 권장 (조기 하차)",
+          lat: 33.4788,
+          lng: 126.4765,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_12",
+          boxNos: [12],
+          name: "Thi ***",
+          address: "제주시 다랑곶7길 4",
+          building: "한송주택 101호",
+          goods: "베트남 냉동식품",
+          quantity: 1,
+          phone: "010-5227-1704",
+          notes: "빌라 1층 현관 하차",
+          lat: 33.4912,
+          lng: 126.4815,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_13",
+          boxNos: [13],
+          name: "국밥생각 노형점",
+          address: "제주시 과원북4길 17",
+          building: "1층",
+          goods: "가공식품",
+          quantity: 1,
+          phone: "010-2744-9614",
+          notes: "매장 앞 쾌속 직하차",
+          lat: 33.4848,
+          lng: 126.4855,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_14",
+          boxNos: [14],
+          name: "김*남",
+          address: "제주시 수덕로 44",
+          building: "뜨란채 203동 902호",
+          goods: "한우 1호 세트",
+          quantity: 1,
+          phone: "010-2689-5380",
+          notes: "아파트 고층 E/V 하차",
+          lat: 33.4860,
+          lng: 126.4740,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_15",
+          boxNos: [15],
+          name: "한*욱",
+          address: "제주시 원노형남1길 11",
+          building: "이편한세상시티 717호",
+          goods: "밀싹 600g",
+          quantity: 1,
+          phone: "0507-0151-1968",
+          notes: "오피스텔 E/V 경유",
+          lat: 33.4862,
+          lng: 126.4880,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_16",
+          boxNos: [16],
+          name: "김*현",
+          address: "제주시 1100로 3047",
+          building: "몽켈락하우스 4층",
+          goods: "한우 1등급",
+          quantity: 1,
+          phone: "010-2691-8201",
+          notes: "수목원 맞은편 주택가",
+          lat: 33.4690,
+          lng: 126.4860,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_17",
+          boxNos: [17],
+          name: "청담약국(뇌*란)",
+          address: "제주시 노형로 378",
+          building: "1층 101호",
+          goods: "비건포기김치 3kg",
+          quantity: 1,
+          phone: "010-3893-0776",
+          notes: "노형오거리 대로변 비상등 점멸 즉시 하차",
+          lat: 33.4878,
+          lng: 126.4835,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "s_18",
+          boxNos: [18],
+          name: "장*연",
+          address: "제주시 도령로 37",
+          building: "노형에코하임 1003호",
+          goods: "소고기/돼지고기",
+          quantity: 1,
+          phone: "010-3892-8887",
+          notes: "대로변 아파트 단지",
+          lat: 33.4885,
+          lng: 126.4810,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        }
+      ],
+      "seogwipo5": [
+        {
+          id: "sw_1",
+          boxNos: [1],
+          name: "탐라모터스",
+          address: "서귀포시 일주동로 8900",
+          building: "마당 창고",
+          goods: "김 선물세트",
+          quantity: 210,
+          phone: "010-1234-5678",
+          notes: "초대량 경량 마당 직하차 (20분 소요)",
+          lat: 33.2550,
+          lng: 126.5850,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "sw_2",
+          boxNos: [2],
+          name: "더시에나리조트",
+          address: "서귀포시 대포동 1200",
+          building: "후문 보안실",
+          goods: "사과 세트",
+          quantity: 147,
+          phone: "010-9876-5432",
+          notes: "대차 8회 왕복 + E/V (34분 소요)",
+          lat: 33.2420,
+          lng: 126.4350,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        },
+        {
+          id: "sw_3",
+          boxNos: [3],
+          name: "서귀포신협",
+          address: "서귀포시 중앙로 45",
+          building: "1층 창구",
+          goods: "공산품",
+          quantity: 25,
+          phone: "010-3333-7777",
+          notes: "16시 이전 영업창구 하차 필수",
+          lat: 33.2505,
+          lng: 126.5601,
+          payAmount: 0,
+          completed: false,
+          completedAt: null
+        }
+      ]
+    };
 
+    // ----------------------------------------------------
+    // 2. 초기화 및 세션 관리
+    // ----------------------------------------------------
     window.addEventListener("DOMContentLoaded", () => {
-      initLeaflet();
-      startLiveClock();
-      bindCameraUploader();
+      initMap();
+      startClock();
       loadStoredSession();
     });
 
-    function startLiveClock() {
+    function startClock() {
       const el = document.getElementById('current-clock');
       const update = () => {
         const d = new Date();
-        el.innerText = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+        el.innerText = `현재시각: ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
       };
       update();
       setInterval(update, 1000);
     }
 
+    function switchSession(sessId) {
+      currentSessionId = sessId;
+      stops = JSON.parse(JSON.stringify(SESSION_DATA[sessId] || []));
+      sortByRecommendedCourse();
+      saveSession();
+    }
+
     function saveSession() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ stops, departureTime }));
+      localStorage.setItem(`${STORAGE_KEY}_${currentSessionId}`, JSON.stringify({ stops, departureTime }));
     }
 
     function loadStoredSession() {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_${currentSessionId}`);
+      if (saved) {
         try {
-          const parsed = JSON.parse(raw);
+          const parsed = JSON.parse(saved);
           stops = parsed.stops || [];
           departureTime = parsed.departureTime || "08:30";
-          recalculatePhysics();
-          renderCardList();
-          renderMapVisuals();
+          triggerRoadRoutingAndRecalc();
           return;
-        } catch (err) {
-          console.error("캐시 로드 실패:", err);
+        } catch (e) {
+          console.error("세션 로드 실패:", e);
         }
       }
-      loadDefaultFull18Data();
-    }
-
-    function loadDefaultFull18Data() {
-      // 추천 순환 루프 순으로 기본 정렬 적재
-      stops = JSON.parse(JSON.stringify(INITIAL_18_STOPS));
-      sortByRecommendedLoop();
+      switchSession("nohyeong18");
     }
 
     function resetCompletedStatus() {
-      if (!confirm("모든 하차 완료 상태를 초기화하시겠습니까?")) return;
+      if (!confirm("모든 하차완료 기록을 초기화하시겠습니까?")) return;
       stops.forEach(s => {
         s.completed = false;
         s.completedAt = null;
       });
-      recalculatePhysics();
-      renderCardList();
-      renderMapVisuals();
+      triggerRoadRoutingAndRecalc();
     }
 
-    // ------------------------------------------------------------------
-    // 도로 및 하차 소요 시간 계산 엔진
-    // ------------------------------------------------------------------
-    function recalculatePhysics() {
-      if (!stops || stops.length === 0) {
-        refreshDashboard();
-        return;
+    // ----------------------------------------------------
+    // 3. OSRM 실제 도로망 라우팅 엔진 연동
+    // ----------------------------------------------------
+    async function triggerRoadRoutingAndRecalc() {
+      const statusBox = document.getElementById('routing-status');
+      statusBox.classList.remove('hidden');
+
+      let roadDistanceKm = 0;
+      let routeGeoJSON = null;
+
+      if (stops.length >= 2) {
+        // OSRM 엔드포인트 좌표 포맷: lon,lat;lon,lat;...
+        const coordParam = stops.map(s => `${s.lng},${s.lat}`).join(';');
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordParam}?overview=full&geometries=geojson`;
+
+        try {
+          const res = await fetch(osrmUrl);
+          const data = await res.json();
+
+          if (data && data.routes && data.routes.length > 0) {
+            const bestRoute = data.routes[0];
+            roadDistanceKm = (bestRoute.distance / 1000).toFixed(1);
+            routeGeoJSON = bestRoute.geometry;
+
+            // 각 레그(구간)별 실제 도로 거리 및 시간 배분
+            if (bestRoute.legs && bestRoute.legs.length === stops.length - 1) {
+              bestRoute.legs.forEach((leg, idx) => {
+                const targetStop = stops[idx + 1];
+                targetStop.realLegKm = (leg.distance / 1000).toFixed(2);
+                targetStop.rawDriveSec = leg.duration;
+              });
+            }
+          }
+        } catch (err) {
+          console.warn("OSRM 도로망 호출 실패, 내부 보정 엔진 대체:", err);
+        }
       }
 
-      let pivotTime = parseHHMM(departureTime);
+      statusBox.classList.add('hidden');
+      recalculateSchedule(roadDistanceKm);
+      renderMapRoute(routeGeoJSON);
+      renderCards();
+    }
+
+    // ----------------------------------------------------
+    // 4. 물리 보정 계수 및 실시간 리스케줄링 계산
+    // ----------------------------------------------------
+    function recalculateSchedule(totalRoadKm) {
+      if (!stops || stops.length === 0) return;
+
+      let currentTime = parseHHMM(departureTime);
+      let accumulatedKm = 0;
 
       stops.forEach((stop, idx) => {
-        // 하차 기본 시간 산정 모델 (소량 쾌속: 6분, 합포/상가/E/V: 8~10분)
-        if (stop.quantity >= 2) {
-          stop.unloadMinutes = 9;
-        } else if (stop.detail && (stop.detail.includes("층") || stop.detail.includes("호"))) {
-          stop.unloadMinutes = 8;
-        } else {
-          stop.unloadMinutes = 6;
-        }
+        // 하차 작업 소요 시간 세분화 모델 (T_unload)
+        stop.unloadMin = computeUnloadTime(stop);
 
-        // 구간 이동 시간 (신선육류 보정 계수 1.15 적용)
+        // 주행 시간 계산 (T_drive = 기본시간 * K_road * K_cargo)
         if (idx === 0) {
-          stop.driveMinutes = 7;
+          stop.driveMin = 6;
+          stop.stepKm = 1.2;
         } else {
-          const prev = stops[idx - 1];
-          const distKm = computeDistanceKm(prev.lat, prev.lng, stop.lat, stop.lng);
-          const baseTime = Math.max(3, Math.round((distKm / 32) * 60)); // 시내 32km/h 기준
-          stop.driveMinutes = Math.round(baseTime * 1.15);
+          let baseMin = 5;
+          let legKm = 1.0;
+
+          if (stop.rawDriveSec) {
+            baseMin = Math.round(stop.rawDriveSec / 60);
+            legKm = parseFloat(stop.realLegKm) || 1.0;
+          } else {
+            const prev = stops[idx - 1];
+            legKm = getCrowDist(prev.lat, prev.lng, stop.lat, stop.lng);
+            baseMin = Math.max(3, Math.round((legKm / 32) * 60));
+          }
+
+          stop.stepKm = legKm;
+          accumulatedKm += legKm;
+
+          // 도로 환경 계수 (K_road)
+          let kRoad = 1.0;
+          if (stop.address.includes("516로") || stop.address.includes("산록남로") || stop.address.includes("고사마루길")) {
+            kRoad = 1.25;
+          } else if (stop.address.includes("월랑로") || stop.address.includes("다랑곶")) {
+            kRoad = 1.15; // 좁은 골목
+          }
+
+          // 화물 특성 계수 (K_cargo: 신선식품/한우/과일 감속)
+          let kCargo = (stop.goods.includes("한우") || stop.goods.includes("과일") || stop.goods.includes("사과")) ? 1.15 : 1.0;
+
+          stop.driveMin = Math.max(3, Math.round(baseMin * kRoad * kCargo));
         }
 
+        // 실시간 연쇄 시간 업데이트 (하차완료 시각 박제)
         if (stop.completed && stop.completedAt) {
-          pivotTime = parseHHMM(stop.completedAt);
+          currentTime = parseHHMM(stop.completedAt);
           stop.etaArrival = stop.completedAt;
           stop.etaFinish = stop.completedAt;
         } else {
-          const arrivalD = new Date(pivotTime.getTime() + stop.driveMinutes * 60000);
-          const finishD = new Date(arrivalD.getTime() + stop.unloadMinutes * 60000);
+          const arrD = new Date(currentTime.getTime() + stop.driveMin * 60000);
+          const finD = new Date(arrD.getTime() + stop.unloadMin * 60000);
 
-          stop.etaArrival = formatToHHMM(arrivalD);
-          stop.etaFinish = formatToHHMM(finishD);
-          pivotTime = finishD;
+          stop.etaArrival = formatHHMM(arrD);
+          stop.etaFinish = formatHHMM(finD);
+          currentTime = finD;
         }
       });
 
-      refreshDashboard();
+      // 대시보드 업데이트
+      const totalBoxes = stops.reduce((sum, s) => sum + s.quantity, 0);
+      const doneBoxes = stops.filter(s => s.completed).reduce((sum, s) => sum + s.quantity, 0);
+      document.getElementById('stat-count').innerText = `${doneBoxes} / ${totalBoxes}`;
+      
+      const finalKm = totalRoadKm > 0 ? totalRoadKm : accumulatedKm.toFixed(1);
+      document.getElementById('stat-total-dist').innerText = `${finalKm} km`;
+
+      const nextTarget = stops.find(s => !s.completed);
+      document.getElementById('stat-next-eta').innerText = nextTarget ? nextTarget.etaArrival : "완판";
+
+      const lastStop = stops[stops.length - 1];
+      document.getElementById('stat-finish-eta').innerText = lastStop ? lastStop.etaFinish : "--:--";
+
       saveSession();
     }
 
-    function computeDistanceKm(lat1, lon1, lat2, lon2) {
+    function computeUnloadTime(item) {
+      if (item.quantity >= 180) return 21; // 초대량 경량 마당
+      if (item.quantity >= 100) return 34; // 리조트 카트 왕복
+      if (item.quantity <= 2) {
+        if (item.building && (item.building.includes("호") || item.building.includes("층") || item.building.includes("아파트"))) {
+          return 8; // 아파트/E/V 경유
+        }
+        return 6; // 소량 쾌속 매장앞
+      }
+      return 14;
+    }
+
+    function getCrowDist(lat1, lon1, lat2, lon2) {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
       const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                 Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                 Math.sin(dLon/2) * Math.sin(dLon/2);
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))) * 1.25; // 굴곡률 보정
     }
 
-    function parseHHMM(timeStr) {
-      const [h, m] = timeStr.split(':').map(Number);
+    function parseHHMM(str) {
+      const [h, m] = str.split(':').map(Number);
       const d = new Date();
       d.setHours(h, m, 0, 0);
       return d;
     }
 
-    function formatToHHMM(d) {
+    function formatHHMM(d) {
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
 
-    function refreshDashboard() {
-      const totalBoxes = stops.reduce((acc, cur) => acc + cur.quantity, 0);
-      const doneBoxes = stops.filter(s => s.completed).reduce((acc, cur) => acc + cur.quantity, 0);
-      const remainingStops = stops.filter(s => !s.completed).length;
-
-      document.getElementById('stat-count').innerText = `${doneBoxes} / ${totalBoxes}`;
-      document.getElementById('stat-remaining').innerText = `${remainingStops} 곳`;
-
-      const nextTarget = stops.find(s => !s.completed);
-      document.getElementById('stat-next-eta').innerText = nextTarget ? nextTarget.etaArrival : "완료";
-
-      const finalStop = stops[stops.length - 1];
-      document.getElementById('stat-finish-eta').innerText = finalStop ? finalStop.etaFinish : "--:--";
-    }
-
-    // ------------------------------------------------------------------
-    // UI 카드 렌더링
-    // ------------------------------------------------------------------
-    function renderCardList() {
-      const listEl = document.getElementById('card-container');
-      listEl.innerHTML = "";
+    // ----------------------------------------------------
+    // 5. 카드 렌더링 및 텍스트 복사 로직 (핵심 요청 반영)
+    // ----------------------------------------------------
+    function renderCards() {
+      const container = document.getElementById('card-list-container');
+      container.innerHTML = "";
 
       stops.forEach((stop, index) => {
         const isDone = stop.completed;
-        const boxBadgeText = stop.boxNumbers.join(", ");
+        const boxBadge = stop.boxNos.join(", ");
+
+        // [요청 반영 1] 타이틀 복사: 순번 + 이름 + 상세정보(아파트, 빌라, 층수) 자동 결합
+        const titleCopyText = generateTitleWithDetail(stop, boxBadge);
+
+        // [요청 반영 2] 내비 주소 복사: 동/호수/층수를 완벽 제거한 순수 도로명 주소
+        const sanitizedRoadAddr = sanitizeAddressForNavi(stop.address);
 
         const card = document.createElement('div');
-        card.className = `p-3 rounded-xl border transition-all ${
+        card.className = `p-4 rounded-3xl border transition-all ${
           isDone 
-            ? 'bg-slate-900/50 border-emerald-950 text-slate-500' 
-            : 'bg-slate-900 border-slate-800 text-slate-100 shadow-md'
+            ? 'bg-slate-900/40 border-emerald-950/80 text-slate-500' 
+            : 'bg-slate-900 border-slate-800 text-slate-100 shadow-xl'
         }`;
 
         card.innerHTML = `
-          <div class="flex items-start justify-between gap-2 mb-2">
-            <div class="flex items-center gap-2.5">
-              <!-- 수기 박스 번호 배지 -->
+          <div class="flex items-start justify-between gap-2 mb-2.5">
+            <div class="flex items-center gap-3">
+              <!-- 동글동글 박스 번호 배지 -->
               <div class="flex flex-col items-center">
-                <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">BOX</span>
-                <span class="px-2 py-1 rounded-lg flex items-center justify-center text-sm font-black border ${
+                <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">BOX</span>
+                <span class="px-2.5 py-1 rounded-2xl flex items-center justify-center text-sm font-black border ${
                   isDone 
                     ? 'bg-emerald-950 border-emerald-800 text-emerald-300' 
                     : 'bg-sky-500 text-slate-950 border-sky-400 shadow-md shadow-sky-500/20'
                 }">
-                  #${boxBadgeText}
+                  #${boxBadge}
                 </span>
               </div>
 
               <div>
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="text-xs font-black text-slate-400 font-mono">[순번 ${index + 1}]</span>
-                  <h3 class="font-bold text-sm text-white flex items-center gap-1">
+                  <h3 class="font-extrabold text-base text-white flex items-center gap-1">
                     ${stop.name}
-                    ${stop.collectPay > 0 ? `<span class="text-[10px] bg-amber-900/80 border border-amber-600 text-amber-300 px-1.5 py-0.2 rounded font-bold">착불 ${stop.collectPay.toLocaleString()}원</span>` : ''}
                   </h3>
+                  ${stop.payAmount > 0 ? `<span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/50 px-2 py-0.5 rounded-full font-bold">착불 ${stop.payAmount.toLocaleString()}원</span>` : ''}
                 </div>
-                <p class="text-[11px] text-slate-400 font-mono">
-                  ${stop.goods} · ${stop.quantity}박스 
-                  <span class="text-slate-500">(${stop.waybills[0]})</span>
+                <p class="text-xs text-slate-400 font-mono mt-0.5">
+                  ${stop.goods} · ${stop.quantity}박스
                 </p>
               </div>
             </div>
 
-            <!-- 미완료 시 순서 이동 버튼 -->
+            <!-- 순서 조정 원형 버튼 -->
             ${!isDone ? `
               <div class="flex items-center gap-1">
-                <button onclick="changeOrder(${index}, -1)" class="touch-btn bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-xs text-slate-300">▲</button>
-                <button onclick="changeOrder(${index}, 1)" class="touch-btn bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-xs text-slate-300">▼</button>
+                <button onclick="moveStop(${index}, -1)" class="touch-pill w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs">▲</button>
+                <button onclick="moveStop(${index}, 1)" class="touch-pill w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs">▼</button>
               </div>
             ` : ''}
           </div>
 
-          <!-- 도로명 및 도착 예정 시각 바 -->
-          <div class="bg-slate-950 rounded-lg p-2 mb-2 flex justify-between items-center text-[11px] border border-slate-800/80">
-            <div class="flex items-center gap-1.5 text-slate-300 truncate">
+          <!-- 도로명 및 도착시간 알약 뷰 -->
+          <div class="bg-slate-950/80 rounded-2xl p-2.5 mb-2.5 flex justify-between items-center text-xs border border-slate-800/80">
+            <div class="flex items-center gap-1.5 text-slate-300 truncate pr-2">
               <i class="fa-solid fa-location-dot text-sky-400 text-xs"></i>
-              <span class="font-semibold text-white">${stop.address}</span>
-              <span class="text-slate-400 text-[10px]">${stop.detail}</span>
+              <span class="font-bold text-white">${stop.address}</span>
+              <span class="text-sky-300/90 text-[11px] font-semibold">${stop.building || ''}</span>
             </div>
-            <div class="text-right whitespace-nowrap pl-2">
+            <div class="text-right whitespace-nowrap">
               <span class="text-slate-400 text-[10px]">도착:</span>
-              <span class="font-bold ${isDone ? 'text-slate-500' : 'text-emerald-400'}">${stop.etaArrival}</span>
+              <span class="font-black ${isDone ? 'text-slate-500' : 'text-emerald-400'}">${stop.etaArrival}</span>
             </div>
           </div>
 
-          ${stop.notes ? `<div class="text-[10px] text-amber-300/80 mb-2 font-sans">※ ${stop.notes}</div>` : ''}
+          ${stop.notes ? `<div class="text-[11px] text-amber-300/80 mb-3 px-1 font-sans">※ ${stop.notes}</div>` : ''}
 
-          <!-- 3대 퀵버튼 & 하차완료 버튼 -->
-          <div class="grid grid-cols-4 gap-1.5">
-            <button onclick="copyToClipboard('${boxBadgeText}번 ${stop.name}', '타이틀이 복사되었습니다')" class="touch-btn bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 rounded-lg text-xs font-semibold text-center truncate">
+          <!-- 원터치 알약형 버튼 4열 그리드 -->
+          <div class="grid grid-cols-4 gap-2">
+            <!-- 타이틀 복사: 아파트/빌라/층수 자동 포함 -->
+            <button onclick="copyToClip('${titleCopyText}', '타이틀+상세정보 복사완료')" class="touch-pill bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-full text-xs font-bold text-center truncate border border-slate-700/60 shadow-sm">
               <i class="fa-regular fa-copy mr-1 text-slate-400"></i>타이틀
             </button>
-            <button onclick="copyToClipboard('${stop.address}', '정제 도로명이 복사되었습니다')" class="touch-btn bg-sky-950 hover:bg-sky-900 border border-sky-800 text-sky-300 py-2 rounded-lg text-xs font-bold text-center truncate">
+            <!-- 내비 복사: 정제 도로명 주소만 복사 -->
+            <button onclick="copyToClip('${sanitizedRoadAddr}', '정제 도로명 복사완료 (카카오내비용)')" class="touch-pill bg-sky-950 hover:bg-sky-900 border border-sky-800 text-sky-300 py-2.5 rounded-full text-xs font-black text-center truncate shadow-sm">
               <i class="fa-solid fa-diamond-turn-right mr-1 text-sky-400"></i>내비복사
             </button>
-            <a href="tel:${stop.phone}" class="touch-btn bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 rounded-lg text-xs font-semibold flex items-center justify-center">
+            <a href="tel:${stop.phone}" class="touch-pill bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-full text-xs font-bold flex items-center justify-center border border-slate-700/60 shadow-sm">
               <i class="fa-solid fa-phone text-emerald-400 mr-1"></i>통화
             </a>
-            <button onclick="toggleDeliveryDone(${index})" class="touch-btn ${
+            <button onclick="toggleDone(${index})" class="touch-pill ${
               isDone 
                 ? 'bg-emerald-950 border border-emerald-800 text-emerald-300' 
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow-md shadow-emerald-700/20'
-            } py-2 rounded-lg text-xs text-center">
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow-lg shadow-emerald-700/30'
+            } py-2.5 rounded-full text-xs text-center">
               ${isDone ? `<i class="fa-solid fa-check mr-1"></i>${stop.completedAt}` : '하차완료'}
             </button>
           </div>
         `;
 
-        listEl.appendChild(card);
+        container.appendChild(card);
       });
     }
 
-    function toggleDeliveryDone(index) {
+    // 타이틀 복사 텍스트 빌더 (아파트, 빌라, 층수 결합)
+    function generateTitleWithDetail(stop, boxBadge) {
+      let text = `${boxBadge}번 ${stop.name}`;
+      if (stop.building && stop.building.trim().length > 0) {
+        text += ` ${stop.building.trim()}`;
+      }
+      return text;
+    }
+
+    // 카카오내비 호환용 주소 정제 (호수, 층수, 대괄호 제거)
+    function sanitizeAddressForNavi(addr) {
+      if (!addr) return "";
+      return addr
+        .replace(/\[\vert{}\]/g, '')
+        .replace(/(\d+동\s*\d+호|\d+호|\d+층)/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
+
+    function toggleDone(index) {
       const stop = stops[index];
       if (stop.completed) {
         stop.completed = false;
@@ -630,89 +781,65 @@
       } else {
         const d = new Date();
         stop.completed = true;
-        stop.completedAt = formatToHHMM(d);
+        stop.completedAt = formatHHMM(d);
       }
-      recalculatePhysics();
-      renderCardList();
-      renderMapVisuals();
+      triggerRoadRoutingAndRecalc();
     }
 
-    function changeOrder(index, delta) {
+    function moveStop(index, delta) {
       const target = index + delta;
       if (target < 0 || target >= stops.length) return;
       if (stops[index].completed || stops[target].completed) return;
 
-      const temp = stops[index];
+      const tmp = stops[index];
       stops[index] = stops[target];
-      stops[target] = temp;
+      stops[target] = tmp;
 
-      recalculatePhysics();
-      renderCardList();
-      renderMapVisuals();
+      triggerRoadRoutingAndRecalc();
     }
 
-    // 추천 5대 권역 루프순 정렬
-    function sortByRecommendedLoop() {
-      const loopOrder = [
-        "stop_6",      // 1. 고사마루길
-        "stop_16",     // 2. 1100로
-        "stop_1_9",    // 3. 수목원길 묶음
-        "stop_3",      // 4. 한라대학로 107
-        "stop_11",     // 5. 참맛나김밥
-        "stop_7_10",   // 6. 돌돌왕십리곱창 묶음
-        "stop_4",      // 7. 부영 504동
-        "stop_5",      // 8. 부영 505동
-        "stop_13",     // 9. 국밥생각
-        "stop_15",     // 10. 이편한세상시티
-        "stop_8",      // 11. 원노형4길
-        "stop_17",     // 12. 청담약국
-        "stop_18",     // 13. 노형에코하임
-        "stop_14",     // 14. 뜨란채
-        "stop_2",      // 15. 월랑로4길 광도빌라
-        "stop_12"      // 16. 한송주택 다랑곶
-      ];
+    function sortByRecommendedCourse() {
+      if (currentSessionId === "nohyeong18") {
+        const priorityOrder = ["s_6", "s_16", "s_1_9", "s_3", "s_11", "s_7_10", "s_4", "s_5", "s_13", "s_15", "s_8", "s_17", "s_18", "s_14", "s_2", "s_12"];
+        stops.sort((a, b) => priorityOrder.indexOf(a.id) - priorityOrder.indexOf(b.id));
+      } else {
+        stops.sort((a, b) => b.quantity - a.quantity);
+      }
 
-      stops.sort((a, b) => loopOrder.indexOf(a.id) - loopOrder.indexOf(b.id));
+      document.getElementById('btn-sort-course').className = "touch-pill px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold";
+      document.getElementById('btn-sort-box').className = "touch-pill px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-medium";
 
-      document.getElementById('btn-sort-course').className = "touch-btn px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold";
-      document.getElementById('btn-sort-box').className = "touch-btn px-2.5 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700 text-[11px]";
-
-      recalculatePhysics();
-      renderCardList();
-      renderMapVisuals();
+      triggerRoadRoutingAndRecalc();
     }
 
-    // 박스 번호 기준 정렬 (1번 ~ 18번 오름차순)
-    function sortByBoxNoAsc() {
-      stops.sort((a, b) => a.boxNumbers[0] - b.boxNumbers[0]);
+    function sortByBoxAsc() {
+      stops.sort((a, b) => a.boxNos[0] - b.boxNos[0]);
 
-      document.getElementById('btn-sort-box').className = "touch-btn px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[11px] font-bold";
-      document.getElementById('btn-sort-course').className = "touch-btn px-2.5 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700 text-[11px]";
+      document.getElementById('btn-sort-box').className = "touch-pill px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[11px] font-bold";
+      document.getElementById('btn-sort-course').className = "touch-pill px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-medium";
 
-      recalculatePhysics();
-      renderCardList();
-      renderMapVisuals();
+      triggerRoadRoutingAndRecalc();
     }
 
-    function copyToClipboard(text, msg) {
-      navigator.clipboard.writeText(text).then(() => showToast(msg));
+    function copyToClip(text, toastMsg) {
+      navigator.clipboard.writeText(text).then(() => showToast(toastMsg));
     }
 
     function showToast(msg) {
       const t = document.createElement("div");
-      t.className = "fixed bottom-5 left-1/2 -translate-x-1/2 z-[9999] bg-slate-900 border border-sky-400 text-sky-300 text-xs px-4 py-2 rounded-full shadow-2xl transition-opacity";
+      t.className = "fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] bg-slate-900/95 border border-sky-400 text-sky-300 text-xs px-5 py-2.5 rounded-full shadow-2xl transition-all duration-200";
       t.innerText = msg;
       document.body.appendChild(t);
       setTimeout(() => {
         t.style.opacity = "0";
-        setTimeout(() => t.remove(), 300);
-      }, 1400);
+        setTimeout(() => t.remove(), 250);
+      }, 1300);
     }
 
-    // ------------------------------------------------------------------
-    // Leaflet 지도 관제
-    // ------------------------------------------------------------------
-    function initLeaflet() {
+    // ----------------------------------------------------
+    // 6. Leaflet 실제 도로망 렌더링
+    // ----------------------------------------------------
+    function initMap() {
       leafletMap = L.map('map', { zoomControl: false }).setView([33.4830, 126.4800], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18,
@@ -721,103 +848,62 @@
     }
 
     function toggleMapHeight() {
-      const mapDiv = document.getElementById('map');
-      mapDiv.style.height = mapDiv.style.height === '400px' ? '250px' : '400px';
+      const el = document.getElementById('map');
+      el.style.height = el.style.height === '420px' ? '250px' : '420px';
       setTimeout(() => leafletMap.invalidateSize(), 200);
     }
 
-    function renderMapVisuals() {
+    function renderMapRoute(geoJsonData) {
       if (!leafletMap) return;
 
-      mapMarkers.forEach(m => leafletMap.removeLayer(m));
-      mapMarkers = [];
-      if (polylineRoute) leafletMap.removeLayer(polylineRoute);
+      markers.forEach(m => leafletMap.removeLayer(m));
+      markers = [];
+      if (roadPolylineLayer) leafletMap.removeLayer(roadPolylineLayer);
 
-      const latlngs = [];
+      const boundsCoords = [];
 
-      stops.forEach((stop, i) => {
+      // 둥근 핀 마커 렌더링
+      stops.forEach((stop, idx) => {
         const coord = [stop.lat, stop.lng];
-        latlngs.push(coord);
+        boundsCoords.push(coord);
 
-        const badge = stop.boxNumbers.join('/');
+        const badgeText = stop.boxNos.join('/');
+        const pinColor = stop.completed ? '#10b981' : (stop.payAmount > 0 ? '#f59e0b' : '#0284c7');
+
         const pinIcon = L.divIcon({
-          className: 'pin',
-          html: `<div style="background-color: ${stop.completed ? '#10b981' : '#0284c7'}; color: white; width: 26px; height: 26px; border-radius: 6px; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 2px 5px rgba(0,0,0,0.5);">${stop.completed ? '✓' : badge}</div>`,
-          iconSize: [26, 26],
-          iconAnchor: [13, 13]
+          className: 'custom-round-pin',
+          html: `<div style="background-color: ${pinColor}; color: white; width: 28px; height: 28px; border-radius: 9999px; border: 2.5px solid white; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 4px 6px rgba(0,0,0,0.4);">${stop.completed ? '✓' : badgeText}</div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
         });
 
         const marker = L.marker(coord, { icon: pinIcon }).addTo(leafletMap);
-        marker.bindPopup(`<b>#${badge} (${stop.name})</b><br>${stop.address}<br>도착예정: ${stop.etaArrival}`);
-        mapMarkers.push(marker);
+        marker.bindPopup(`<b>#${badgeText} ${stop.name}</b><br>${stop.address} ${stop.building || ''}<br>도착예정: ${stop.etaArrival}`);
+        markers.push(marker);
       });
 
-      if (latlngs.length > 1) {
-        polylineRoute = L.polyline(latlngs, {
+      // 실제 도로 궤적(GeoJSON) 렌더링
+      if (geoJsonData && geoJsonData.coordinates) {
+        roadPolylineLayer = L.geoJSON(geoJsonData, {
+          style: {
+            color: '#38bdf8',
+            weight: 4.5,
+            opacity: 0.85,
+            lineJoin: 'round',
+            lineCap: 'round'
+          }
+        }).addTo(leafletMap);
+        leafletMap.fitBounds(roadPolylineLayer.getBounds(), { padding: [35, 35] });
+      } else if (boundsCoords.length > 1) {
+        // Fallback 직선
+        roadPolylineLayer = L.polyline(boundsCoords, {
           color: '#38bdf8',
           weight: 3.5,
-          dashArray: '5, 7',
-          opacity: 0.85
+          dashArray: '5, 8',
+          opacity: 0.75
         }).addTo(leafletMap);
-        leafletMap.fitBounds(polylineRoute.getBounds(), { padding: [30, 30] });
+        leafletMap.fitBounds(roadPolylineLayer.getBounds(), { padding: [35, 35] });
       }
-    }
-
-    // ------------------------------------------------------------------
-    // 신규 이미지 OCR 업로더
-    // ------------------------------------------------------------------
-    function bindCameraUploader() {
-      const input = document.getElementById('camera-input');
-      input.addEventListener('change', async (e) => {
-        const files = Array.from(e.target.files);
-        if (files.length === 0) return;
-
-        const pBar = document.getElementById('ocr-progress-bar');
-        const pMsg = document.getElementById('ocr-status-msg');
-        const pPct = document.getElementById('ocr-pct');
-        pBar.classList.remove('hidden');
-
-        for (let i = 0; i < files.length; i++) {
-          pMsg.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>[${i + 1}/${files.length}] 신규 송장 OCR 판독 중...`;
-          pPct.innerText = `${Math.round(((i + 1) / files.length) * 100)}%`;
-
-          try {
-            const worker = await Tesseract.createWorker('kor+eng');
-            const res = await worker.recognize(files[i]);
-            await worker.terminate();
-            
-            const raw = res.data.text || "";
-            const boxMatch = raw.match(/\b([1-9][0-9]?)\b/);
-            const boxVal = boxMatch ? parseInt(boxMatch[1], 10) : (stops.length + 1);
-
-            stops.push({
-              id: `stop_new_${Date.now()}_${i}`,
-              boxNumbers: [boxVal],
-              name: `신규 배송지 (#${boxVal})`,
-              waybills: ["신규스캔"],
-              address: "제주시 노형로 378",
-              detail: "상세 확인 요망",
-              goods: "신선식품",
-              quantity: 1,
-              phone: "010-0000-0000",
-              notes: "현장 추가 스캔 등록건",
-              lat: 33.4830 + (Math.random() * 0.006 - 0.003),
-              lng: 126.4800 + (Math.random() * 0.006 - 0.003),
-              collectPay: 0,
-              completed: false,
-              completedAt: null
-            });
-          } catch (err) {
-            console.error("OCR 실패:", err);
-          }
-        }
-
-        pBar.classList.add('hidden');
-        input.value = "";
-        recalculatePhysics();
-        renderCardList();
-        renderMapVisuals();
-      });
     }
   </script>
 </body>
