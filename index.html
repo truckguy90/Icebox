@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>아이스박스 - 제주 화물 실제 도로망 관제 라우터 V3</title>
+  <title>아이스박스 - 제주 화물 실제 도로망 관제 라우터 FINAL</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -35,7 +35,7 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
 
-  <!-- 상단 헤더 -->
+  <!-- 상단 헤더 바 -->
   <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 sticky top-0 z-50 flex justify-between items-center shadow-lg">
     <div class="flex items-center gap-2.5">
       <div class="w-10 h-10 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 font-black text-lg shadow-inner">
@@ -44,7 +44,7 @@
       <div>
         <div class="flex items-center gap-1.5">
           <h1 class="font-extrabold text-base text-sky-400 tracking-tight">아이스박스</h1>
-          <span class="text-[10px] bg-sky-950 text-sky-300 border border-sky-800/80 px-2 py-0.5 rounded-full font-semibold">1톤 만차보정 V3</span>
+          <span class="text-[10px] bg-sky-950 text-sky-300 border border-sky-800/80 px-2 py-0.5 rounded-full font-semibold">내비실시간 동기화</span>
         </div>
         <p class="text-[11px] text-slate-400 font-mono" id="current-clock">시각 동기화 중...</p>
       </div>
@@ -52,22 +52,22 @@
     
     <div class="flex items-center gap-1.5">
       <button onclick="openTetrisModal()" class="touch-pill bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800/60 text-xs px-2.5 py-1.5 rounded-full font-semibold">
-        <i class="fa-solid fa-layer-group mr-1"></i>상차가이드
+        <i class="fa-solid fa-truck-ramp-box mr-1"></i>상차가이드
       </button>
       <button onclick="resetCompletedStatus()" class="touch-pill bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-xs px-2.5 py-1.5 rounded-full font-semibold">
-        초기화
+        완료초기화
       </button>
     </div>
   </header>
 
-  <!-- 실시간 운행 대시보드 -->
+  <!-- 실시간 운행 요약 대시보드 -->
   <section class="p-3 grid grid-cols-4 gap-2 text-center text-xs">
     <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800/90 shadow-sm">
       <span class="text-slate-400 block text-[10px] font-medium">완료/총박스</span>
       <span id="stat-count" class="text-sm font-black text-emerald-400">0 / 18</span>
     </div>
     <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800/90 shadow-sm">
-      <span class="text-slate-400 block text-[10px] font-medium">총 실주행</span>
+      <span class="text-slate-400 block text-[10px] font-medium">총 내비거리</span>
       <span id="stat-total-dist" class="text-sm font-black text-sky-400">0.0 km</span>
     </div>
     <div class="bg-slate-900/80 p-2.5 rounded-2xl border border-slate-800/90 shadow-sm">
@@ -80,20 +80,23 @@
     </div>
   </section>
 
-  <!-- 도로망 지도 영역 -->
+  <!-- 도로망 지도 영역 (0px 버그 방지 & 내비 안내 오버레이) -->
   <section class="px-3 pb-2 relative">
     <div class="rounded-3xl overflow-hidden border border-slate-800/90 shadow-lg relative bg-slate-900">
       <div id="map"></div>
+      
+      <!-- 내비 경로 연산 상태 인디케이터 -->
       <div id="routing-status" class="hidden absolute top-3 left-3 z-[1000] bg-slate-900/95 border border-sky-500/50 text-sky-300 text-[10px] px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
-        <i class="fa-solid fa-spinner fa-spin"></i> 도로망 동적 매트릭스 계산 중...
+        <i class="fa-solid fa-spinner fa-spin"></i> OSRM 내비 도로망 연동 중...
       </div>
+
       <button onclick="toggleMapHeight()" class="touch-pill absolute bottom-3 right-3 z-[1000] bg-slate-900/90 text-slate-300 text-[11px] px-3 py-1.5 rounded-full border border-slate-700 shadow-md">
         <i class="fa-solid fa-expand mr-1"></i>지도 토글
       </button>
     </div>
   </section>
 
-  <!-- 컨트롤 정렬 및 액션 바 -->
+  <!-- 컨트롤 정렬 및 파라미터 액션 바 -->
   <div class="px-4 py-2 flex justify-between items-center text-xs">
     <div class="flex items-center gap-1.5">
       <span class="text-slate-400 text-[11px] font-medium">정렬:</span>
@@ -103,12 +106,19 @@
       <button onclick="sortByBoxAsc()" id="btn-sort-box" class="touch-pill px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-medium">
         박스번호순(#)
       </button>
-    </div>
-    <div class="flex items-center gap-2">
-      <button onclick="openTimeAdjustModal()" class="text-[11px] text-sky-400 hover:underline">
-        <i class="fa-regular fa-clock mr-0.5"></i>출차조정
+      <button onclick="restoreOriginalOrder()" class="touch-pill px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 hover:text-white border border-slate-700 text-[11px]">
+        순서원복
       </button>
-      <span class="text-slate-600">|</span>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <button onclick="openTimeAdjustModal()" class="text-[11px] text-sky-400 hover:underline">
+        출차조정
+      </button>
+      <span class="text-slate-600">·</span>
+      <button onclick="openUnloadAdjustModal()" class="text-[11px] text-emerald-400 hover:underline">
+        하차시간
+      </button>
+      <span class="text-slate-600">·</span>
       <button onclick="copyAllTitles()" class="text-[11px] text-slate-400 hover:text-slate-200 underline">
         전체복사
       </button>
@@ -120,65 +130,77 @@
     <!-- 동적 렌더링 -->
   </main>
 
-  <!-- 테트리스 상차 안내 모달 -->
+  <!-- 1톤 적재함 테트리스 가이드 모달 -->
   <div id="tetris-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[85vh]">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
         <h3 class="font-bold text-sm text-amber-400 flex items-center gap-1.5">
-          <i class="fa-solid fa-truck-ramp-box"></i> 1톤 적재함 테트리스 가이드
+          <i class="fa-solid fa-truck-ramp-box"></i> 1톤 탑차 테트리스 상차 가이드
         </h3>
         <button onclick="closeTetrisModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
       </div>
       <div class="text-xs text-slate-300 space-y-3 overflow-y-auto flex-1 pr-1">
-        <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5">
-          <p class="font-bold text-amber-300">규칙: 역순 적재 (First-In, Last-Out)</p>
-          <p class="text-slate-400">탑차 안쪽 끝부터 오후 마지막 물량을 채우고, 적재함 문 앞쪽에 오전 1~3번 물량을 배치해야 통로가 열립니다.</p>
+        <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
+          <p class="font-bold text-amber-300">원칙: 역순 적재 (First-In, Last-Out)</p>
+          <p class="text-slate-400 text-[11px]">오후 마지막 배송지를 탑차 가장 안쪽에 싣고, 1~3번 오전 첫 배송지를 문 바로 앞에 실어야 하차 통로가 확보됩니다.</p>
         </div>
-        <div class="space-y-1.5" id="tetris-order-list">
-          <!-- 동적 상차 순서 주입 -->
-        </div>
+        <div class="space-y-1.5" id="tetris-order-list"></div>
       </div>
-      <button onclick="closeTetrisModal()" class="mt-4 w-full py-2.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold">
-        확인 완료
-      </button>
+      <button onclick="closeTetrisModal()" class="mt-4 w-full py-2.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold">닫기</button>
     </div>
   </div>
 
   <!-- 출차 시간 조정 모달 -->
   <div id="time-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-700 w-full max-w-xs rounded-3xl p-5 shadow-2xl text-center">
-      <h3 class="font-bold text-sm text-sky-400 mb-2">출차 기준시각 조정</h3>
-      <p class="text-slate-400 text-xs mb-4">현재 설정된 출차 시각을 기준으로 전 배송지의 도착 예정 시각이 연쇄 재계산됩니다.</p>
+      <h3 class="font-bold text-sm text-sky-400 mb-2">출차 기준시각 설정</h3>
+      <p class="text-slate-400 text-xs mb-4">현재 설정된 시각부터 각 구간 내비 시간과 하차 소요 시간이 연쇄 계산됩니다.</p>
       <input type="time" id="input-dept-time" class="bg-slate-950 border border-slate-700 text-white text-base px-4 py-2 rounded-2xl outline-none mb-4 w-full text-center">
       <div class="flex gap-2">
         <button onclick="closeTimeAdjustModal()" class="flex-1 py-2 rounded-full bg-slate-800 text-slate-400 text-xs">취소</button>
-        <button onclick="applyNewDeptTime()" class="flex-1 py-2 rounded-full bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs">반영</button>
+        <button onclick="applyNewDeptTime()" class="flex-1 py-2 rounded-full bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs">적용</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 기본 하차 소요 시간 조정 모달 -->
+  <div id="unload-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-xs rounded-3xl p-5 shadow-2xl text-center">
+      <h3 class="font-bold text-sm text-emerald-400 mb-2">기본 하차 소요 시간 변경</h3>
+      <p class="text-slate-400 text-xs mb-4">표준 배송지 1개소당 기본 하차 작업 분(Minute)을 설정합니다.</p>
+      <div class="flex items-center justify-center gap-2 mb-4">
+        <input type="number" id="input-unload-val" min="3" max="30" class="bg-slate-950 border border-slate-700 text-white text-base px-3 py-2 rounded-2xl outline-none w-24 text-center font-bold">
+        <span class="text-sm text-slate-300">분/개소</span>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="closeUnloadAdjustModal()" class="flex-1 py-2 rounded-full bg-slate-800 text-slate-400 text-xs">취소</button>
+        <button onclick="applyNewUnloadDuration()" class="flex-1 py-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">적용</button>
       </div>
     </div>
   </div>
 
   <script>
     // ----------------------------------------------------
-    // 1. 상태 변수 및 출발 거점 좌표
+    // 1. 상태 변수 및 정밀 실좌표 데이터베이스
     // ----------------------------------------------------
-    const STORAGE_KEY = "jeju_delivery_active_session_v3";
-    const SESSION_NAME = "nohyeong18";
+    const SESSION_KEY = "nohyeong18";
     
-    // 출발 거점 (제주시 노형동 물류 거점)
+    // 출발 거점 (제주시 노형동 이마트 맞은편 물류 거점)
     const BASE_DEPOT = {
       name: "노형 배송거점",
-      lat: 33.4855,
-      lng: 126.4750
+      lat: 33.4851,
+      lng: 126.4818
     };
 
     let stops = [];
     let departureTime = "08:30";
+    let defaultUnloadMinutes = 6; // 기본 소량 하차 분
     let leafletMap = null;
     let markers = [];
     let roadPolylineLayer = null;
 
-    // 18개 노형동 실물 원장 데이터 (오전/오후 태그 및 전화번호 마스킹 정제 반영)
-    const INITIAL_STOPS = [
+    // 18개 실물 송장 전수 정밀 매핑 원장
+    const INITIAL_18_STOPS = [
       {
         id: "s_6",
         boxNos: [6],
@@ -189,9 +211,10 @@
         quantity: 1,
         phone: "010-9841-5689",
         sectionTag: "오전",
+        riskTag: "산간서행",
         notes: "신비로 산간 초입 단독주택",
-        lat: 33.4652,
-        lng: 126.4785,
+        lat: 33.4565,
+        lng: 126.4795,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -206,9 +229,10 @@
         quantity: 1,
         phone: "010-2691-8201",
         sectionTag: "오전",
+        riskTag: null,
         notes: "수목원 맞은편 주택가",
-        lat: 33.4690,
-        lng: 126.4860,
+        lat: 33.4635,
+        lng: 126.4862,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -223,9 +247,10 @@
         quantity: 2,
         phone: "", // 끝자리 미기재 (전화 오발신 방지)
         sectionTag: "오전",
+        riskTag: "2박스합포",
         notes: "1번(2-2) + 9번(2-1) 동일 하차지 2박스 묶음",
-        lat: 33.4705,
-        lng: 126.4912,
+        lat: 33.4715,
+        lng: 126.4915,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -238,11 +263,12 @@
         building: "중흥S클래스 101동 102호",
         goods: "축산물(보자기포장)",
         quantity: 1,
-        phone: "", // 미기재
+        phone: "",
         sectionTag: "오전",
+        riskTag: null,
         notes: "정문 경비실 통과 지상 101동 정차",
         lat: 33.4735,
-        lng: 126.4710,
+        lng: 126.4712,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -257,8 +283,9 @@
         quantity: 1,
         phone: "0504-2123-5453",
         sectionTag: "오전",
-        notes: "11:30~13:30 점심 피크 회피 권장 (조기 하차)",
-        lat: 33.4788,
+        riskTag: "11:30점심피크회피",
+        notes: "점심 피크 전 11시 이전 조기 하차 강력 권장",
+        lat: 33.4805,
         lng: 126.4765,
         payAmount: 0,
         completed: false,
@@ -274,9 +301,10 @@
         quantity: 2,
         phone: "010-5161-4983",
         sectionTag: "오전",
-        notes: "7번(2-1)+10번(2-2) 합포 / 착불 8,000원 수령 필수",
+        riskTag: "착불8000원/야간오픈",
+        notes: "7번(2-1)+10번(2-2) 합포 / 착불 8,000원 사전입금 통화",
         lat: 33.4828,
-        lng: 126.4800,
+        lng: 126.4801,
         payAmount: 8000,
         completed: false,
         completedAt: null
@@ -291,9 +319,10 @@
         quantity: 1,
         phone: "",
         sectionTag: "오전",
-        notes: "5번(505동)과 동일 단지 연계 하차",
-        lat: 33.4835,
-        lng: 126.4840,
+        riskTag: null,
+        notes: "5번(505동)과 동일 단지 연계 카트 하차",
+        lat: 33.4838,
+        lng: 126.4842,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -308,9 +337,10 @@
         quantity: 1,
         phone: "0507-0148-0030",
         sectionTag: "오전",
-        notes: "4번(504동)과 동일 단지 연계 하차",
-        lat: 33.4837,
-        lng: 126.4843,
+        riskTag: null,
+        notes: "4번(504동)과 동일 단지 연계 카트 하차",
+        lat: 33.4840,
+        lng: 126.4845,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -325,9 +355,10 @@
         quantity: 1,
         phone: "010-2744-9614",
         sectionTag: "오후",
+        riskTag: "12:00홀혼잡",
         notes: "매장 앞 쾌속 직하차",
-        lat: 33.4848,
-        lng: 126.4855,
+        lat: 33.4851,
+        lng: 126.4858,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -342,9 +373,10 @@
         quantity: 1,
         phone: "0507-0151-1968",
         sectionTag: "오후",
-        notes: "오피스텔 E/V 경유",
-        lat: 33.4862,
-        lng: 126.4880,
+        riskTag: null,
+        notes: "오피스텔 고층 E/V 경유",
+        lat: 33.4863,
+        lng: 126.4882,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -359,9 +391,10 @@
         quantity: 1,
         phone: "",
         sectionTag: "오후",
+        riskTag: "착불7000원",
         notes: "착불 7,000원 수령 필수",
-        lat: 33.4870,
-        lng: 126.4895,
+        lat: 33.4872,
+        lng: 126.4896,
         payAmount: 7000,
         completed: false,
         completedAt: null
@@ -376,9 +409,10 @@
         quantity: 1,
         phone: "",
         sectionTag: "오후",
+        riskTag: "대로변단속주의",
         notes: "노형오거리 대로변 비상등 점멸 즉시 하차",
         lat: 33.4878,
-        lng: 126.4835,
+        lng: 126.4816,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -393,9 +427,10 @@
         quantity: 1,
         phone: "",
         sectionTag: "오후",
+        riskTag: null,
         notes: "대로변 아파트 단지",
-        lat: 33.4885,
-        lng: 126.4810,
+        lat: 33.4888,
+        lng: 126.4832,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -410,8 +445,9 @@
         quantity: 1,
         phone: "",
         sectionTag: "오후",
+        riskTag: null,
         notes: "아파트 고층 E/V 하차",
-        lat: 33.4860,
+        lat: 33.4862,
         lng: 126.4740,
         payAmount: 0,
         completed: false,
@@ -427,9 +463,10 @@
         quantity: 1,
         phone: "",
         sectionTag: "오후",
+        riskTag: null,
         notes: "월랑마을 주택가 안길 서행",
         lat: 33.4905,
-        lng: 126.4760,
+        lng: 126.4762,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -444,9 +481,10 @@
         quantity: 1,
         phone: "",
         sectionTag: "오후",
-        notes: "최종 완판 마감지",
-        lat: 33.4912,
-        lng: 126.4815,
+        riskTag: "최종마감지",
+        notes: "완판 최종 하차지",
+        lat: 33.4915,
+        lng: 126.4795,
         payAmount: 0,
         completed: false,
         completedAt: null
@@ -454,12 +492,12 @@
     ];
 
     // ----------------------------------------------------
-    // 2. 초기화 및 영구 동기화 (LocalStorage Engine)
+    // 2. 초기화 및 LocalStorage 영구 동기화
     // ----------------------------------------------------
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
       startLiveClock();
-      loadPersistedData();
+      loadStoredSession();
     });
 
     function startLiveClock() {
@@ -472,10 +510,12 @@
       setInterval(update, 1000);
     }
 
-    function savePersistedData() {
-      localStorage.setItem(`jeju_stops_${SESSION_NAME}`, JSON.stringify(stops));
-      localStorage.setItem(`jeju_starttime_${SESSION_NAME}`, departureTime);
-      
+    function saveToLocalStorage() {
+      localStorage.setItem(`jeju_delivery_active_session`, SESSION_KEY);
+      localStorage.setItem(`jeju_stops_${SESSION_KEY}`, JSON.stringify(stops));
+      localStorage.setItem(`jeju_starttime_${SESSION_KEY}`, departureTime);
+      localStorage.setItem(`jeju_unload_${SESSION_KEY}`, String(defaultUnloadMinutes));
+
       const completedMap = {};
       const timestampMap = {};
       stops.forEach(s => {
@@ -484,20 +524,22 @@
           timestampMap[s.id] = s.completedAt;
         }
       });
-      localStorage.setItem(`jeju_completed_${SESSION_NAME}`, JSON.stringify(completedMap));
-      localStorage.setItem(`jeju_timestamps_${SESSION_NAME}`, JSON.stringify(timestampMap));
+      localStorage.setItem(`jeju_completed_${SESSION_KEY}`, JSON.stringify(completedMap));
+      localStorage.setItem(`jeju_timestamps_${SESSION_KEY}`, JSON.stringify(timestampMap));
     }
 
-    function loadPersistedData() {
-      const savedStops = localStorage.getItem(`jeju_stops_${SESSION_NAME}`);
-      const savedStart = localStorage.getItem(`jeju_starttime_${SESSION_NAME}`);
-      const savedCompleted = localStorage.getItem(`jeju_completed_${SESSION_NAME}`);
-      const savedTimestamps = localStorage.getItem(`jeju_timestamps_${SESSION_NAME}`);
+    function loadStoredSession() {
+      const savedStops = localStorage.getItem(`jeju_stops_${SESSION_KEY}`);
+      const savedStart = localStorage.getItem(`jeju_starttime_${SESSION_KEY}`);
+      const savedUnload = localStorage.getItem(`jeju_unload_${SESSION_KEY}`);
+      const savedCompleted = localStorage.getItem(`jeju_completed_${SESSION_KEY}`);
+      const savedTimestamps = localStorage.getItem(`jeju_timestamps_${SESSION_KEY}`);
 
       if (savedStops) {
         try {
           stops = JSON.parse(savedStops);
           if (savedStart) departureTime = savedStart;
+          if (savedUnload) defaultUnloadMinutes = parseInt(savedUnload, 10);
 
           if (savedCompleted && savedTimestamps) {
             const cMap = JSON.parse(savedCompleted);
@@ -509,15 +551,16 @@
               }
             });
           }
-          triggerDynamicRecalculation();
+          executeNavigationRouting();
           return;
         } catch (e) {
           console.error("데이터 복원 오류:", e);
         }
       }
-      // 초기 로드
-      stops = JSON.parse(JSON.stringify(INITIAL_STOPS));
-      triggerDynamicRecalculation();
+
+      // 최초 실행 시 추천 순환 루프로 로드
+      stops = JSON.parse(JSON.stringify(INITIAL_18_STOPS));
+      executeNavigationRouting();
     }
 
     function resetCompletedStatus() {
@@ -526,111 +569,137 @@
         s.completed = false;
         s.completedAt = null;
       });
-      triggerDynamicRecalculation();
+      executeNavigationRouting();
     }
 
     // ----------------------------------------------------
-    // 3. 핵심 알고리즘: 동적 도로 매트릭스 & 물리 보정
+    // 3. 실제 도로망(OSRM) 내비게이션 라우팅 & 화물 물리 연산
     // ----------------------------------------------------
-    function calculateDynamicRoadTime(fromLat, fromLon, toLat, toLon, address, goods) {
-      const R = 6371; // 지구 반경
-      const dLat = (toLat - fromLat) * Math.PI / 180;
-      const dLon = (toLon - fromLon) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(fromLat * Math.PI / 180) * Math.cos(toLat * Math.PI / 180) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const straightKm = R * c;
-
-      // 제주도 도로 굴곡도 계수 1.32
-      const roadKm = Math.max(0.6, straightKm * 1.32);
-
-      // 1톤 탑차 시내 35km/h 기준 기본 주행 분 환산
-      let baseMin = Math.round((roadKm / 35.0) * 60);
-
-      // 1톤 만차 도로 환경 계수 (K_road)
-      let kRoad = 1.35; // 시내 신호 밀집 기본 1.35배
-      if (address.includes("1100로") || address.includes("516로") || address.includes("고사마루길")) {
-        kRoad = 1.55; // 중산간 급오르막 등판 부하
-      } else if (address.includes("평화로") || address.includes("번영로")) {
-        kRoad = 1.15; // 고속화 도로
-      }
-
-      // 화물 특성 계수 (K_cargo)
-      let kCargo = (goods.includes("과일") || goods.includes("사과") || goods.includes("배")) ? 1.15 : 1.0;
-
-      let driveMin = Math.max(3, Math.round(baseMin * kRoad * kCargo));
-
-      return {
-        roadKm: parseFloat(roadKm.toFixed(1)),
-        driveMin: driveMin
-      };
-    }
-
-    function computeUnloadDuration(stop) {
-      if (stop.quantity >= 2) return 9; // 합포/대량
-      if (stop.building && (stop.building.includes("호") || stop.building.includes("층") || stop.building.includes("아파트"))) {
-        return 8; // E/V 경유
-      }
-      return 5; // 소량 쾌속 인계
-    }
-
-    async function triggerDynamicRecalculation() {
+    async function executeNavigationRouting() {
       const statusBox = document.getElementById('routing-status');
       statusBox.classList.remove('hidden');
 
-      let accumulatedKm = 0;
-      let pivotTime = parseHHMM(departureTime);
+      // 거점 -> 1번 -> ... -> N번 전체 좌표 배열
+      const allWaypoints = [BASE_DEPOT, ...stops];
+      const coordString = allWaypoints.map(w => `${w.lng},${w.lat}`).join(';');
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&steps=false`;
+
+      let routeGeoJSON = null;
+      let osrmSuccess = false;
+
+      try {
+        const res = await fetch(osrmUrl);
+        const data = await res.json();
+
+        if (data && data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          routeGeoJSON = route.geometry;
+
+          // 구간별 실제 도로 거리 및 시간 배분
+          if (route.legs && route.legs.length === stops.length) {
+            route.legs.forEach((leg, idx) => {
+              const stop = stops[idx];
+              stop.realNaviKm = parseFloat((leg.distance / 1000).toFixed(2));
+              stop.rawNaviSec = leg.duration; // 승용차 기준 초
+            });
+            osrmSuccess = true;
+          }
+        }
+      } catch (err) {
+        console.warn("OSRM 실시간 도로망 응답 지연, 내부 물리엔진 대체:", err);
+      }
+
+      statusBox.classList.add('hidden');
+      computeTimelineAndPhysicalCorrections(osrmSuccess);
+      renderMapDisplay(routeGeoJSON);
+      renderCards();
+      saveToLocalStorage();
+    }
+
+    // 화물차 물리 보정 계수 결합 및 연쇄 타임라인 연산
+    function computeTimelineAndPhysicalCorrections(isOsrmLive) {
+      let accumulatedDistanceKm = 0;
+      let currentTime = parseHHMM(departureTime);
 
       stops.forEach((stop, idx) => {
-        stop.unloadMin = computeUnloadDuration(stop);
-
-        // [결정적 버그 수정] 이전 지점 좌표를 동적으로 추적 (1번은 출발 거점 기준)
-        let fromLat, fromLon;
-        if (idx === 0) {
-          fromLat = BASE_DEPOT.lat;
-          fromLon = BASE_DEPOT.lng;
+        // 1. 하차 소요 시간 산정
+        if (stop.quantity >= 2) {
+          stop.unloadDuration = 9; // 합포/2박스 이상
+        } else if (stop.building && (stop.building.includes("호") || stop.building.includes("층") || stop.building.includes("아파트"))) {
+          stop.unloadDuration = defaultUnloadMinutes + 2; // E/V 경유
         } else {
-          fromLat = stops[idx - 1].lat;
-          fromLon = stops[idx - 1].lng;
+          stop.unloadDuration = defaultUnloadMinutes; // 쾌속 인계
         }
 
-        const metrics = calculateDynamicRoadTime(fromLat, fromLon, stop.lat, stop.lng, stop.address, stop.goods);
-        stop.roadKm = metrics.roadKm;
-        stop.driveMin = metrics.driveMin;
-        accumulatedKm += metrics.roadKm;
+        // 2. 주행 거리 및 내비 기본 시간 산출
+        let baseDriveMin = 4;
+        let legDistanceKm = 1.0;
 
-        // 실시간 연쇄 시간 갱신 (완료 시각 박제)
+        if (isOsrmLive && stop.rawNaviSec) {
+          baseDriveMin = Math.round(stop.rawNaviSec / 60);
+          legDistanceKm = stop.realNaviKm;
+        } else {
+          // OSRM 장애 시 동적 도로 매트릭스 Fallback
+          const prevCoord = (idx === 0) ? BASE_DEPOT : stops[idx - 1];
+          const straight = getHaversineKm(prevCoord.lat, prevCoord.lng, stop.lat, stop.lng);
+          legDistanceKm = parseFloat(Math.max(0.6, straight * 1.32).toFixed(1));
+          baseDriveMin = Math.round((legDistanceKm / 35.0) * 60);
+        }
+
+        stop.stepKm = legDistanceKm;
+        accumulatedDistanceKm += legDistanceKm;
+
+        // 3. 1톤 화물탑차 도로 환경 계수 (K_road) & 화물 특성 계수 (K_cargo)
+        let kRoad = 1.35; // 시내 신호 밀집 기본
+        if (stop.address.includes("1100로") || stop.address.includes("516로") || stop.address.includes("고사마루길")) {
+          kRoad = 1.55; // 중산간 등판 부하
+        } else if (stop.address.includes("평화로") || stop.address.includes("번영로")) {
+          kRoad = 1.15;
+        }
+
+        let kCargo = 1.0;
+        if (stop.goods.includes("사과") || stop.goods.includes("과일") || stop.goods.includes("한우")) {
+          kCargo = 1.15; // 신선육류/과일 방지턱 감속
+        }
+
+        stop.finalDriveMinutes = Math.max(3, Math.round(baseDriveMin * kRoad * kCargo));
+
+        // 4. 연쇄 리스케줄링 (하차완료 박제 시각 적용)
         if (stop.completed && stop.completedAt) {
-          pivotTime = parseHHMM(stop.completedAt);
+          currentTime = parseHHMM(stop.completedAt);
           stop.etaArrival = stop.completedAt;
           stop.etaFinish = stop.completedAt;
         } else {
-          const arrDate = new Date(pivotTime.getTime() + stop.driveMin * 60000);
-          const finDate = new Date(arrDate.getTime() + stop.unloadMin * 60000);
+          const arrD = new Date(currentTime.getTime() + stop.finalDriveMinutes * 60000);
+          const finD = new Date(arrD.getTime() + stop.unloadDuration * 60000);
 
-          stop.etaArrival = formatHHMM(arrDate);
-          stop.etaFinish = formatHHMM(finDate);
-          pivotTime = finDate;
+          stop.etaArrival = formatHHMM(arrD);
+          stop.etaFinish = formatHHMM(finD);
+          currentTime = finD;
         }
       });
 
-      // 대시보드 갱신
+      // 대시보드 지표 갱신
       const totalBoxes = stops.reduce((sum, s) => sum + s.quantity, 0);
       const doneBoxes = stops.filter(s => s.completed).reduce((sum, s) => sum + s.quantity, 0);
       document.getElementById('stat-count').innerText = `${doneBoxes} / ${totalBoxes}`;
-      document.getElementById('stat-total-dist').innerText = `${accumulatedKm.toFixed(1)} km`;
+      document.getElementById('stat-total-dist').innerText = `${accumulatedDistanceKm.toFixed(1)} km`;
 
       const nextStop = stops.find(s => !s.completed);
       document.getElementById('stat-next-eta').innerText = nextStop ? nextStop.etaArrival : "완판";
 
       const finalStop = stops[stops.length - 1];
       document.getElementById('stat-finish-eta').innerText = finalStop ? finalStop.etaFinish : "--:--";
+    }
 
-      statusBox.classList.add('hidden');
-      savePersistedData();
-      renderCards();
-      renderMapRoute();
+    function getHaversineKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
     function parseHHMM(str) {
@@ -657,17 +726,16 @@
         const isFinal = (index === stops.length - 1);
         const isLarge = (stop.quantity >= 2);
 
-        // 타이틀 복사: 층수/동호수 결합 정규식
-        const titleCopyText = buildTitleWithBuildingInfo(stop, boxBadge);
-        // 내비 복사: 정제 도로명 주소
-        const cleanRoadAddr = sanitizeRoadAddress(stop.address);
+        // 타이틀 복사: 순번 + 배송지명 + 건물상세
+        const titleCopyText = `${boxBadge}번 ${stop.name} ${stop.building || ''}`.trim();
+        // 내비 복사: 정제 도로명 주소만 복사
+        const cleanRoadAddr = stop.address.replace(/\[\vert{}\]/g, '').replace(/(\d+동\s*\d+호|\d+호|\d+층)/g, '').replace(/\s{2,}/g, ' ').trim();
 
-        // 전화번호 유효성 검사 (오발신 방지)
+        // 전화번호 오발신 방지
         const hasValidPhone = stop.phone && stop.phone.replace(/[^0-9]/g, '').length >= 9 && !stop.phone.includes("****");
 
         const card = document.createElement('div');
         
-        // 카드 외곽선 강조 (대량처: 파란색, 완판지: 황금색, 일반: slate)
         let borderClass = "border-slate-800";
         if (isDone) {
           borderClass = "border-emerald-950/80";
@@ -703,15 +771,17 @@
                     stop.sectionTag === '오전' ? 'bg-sky-950 text-sky-300 border border-sky-800' : 'bg-orange-950 text-orange-300 border border-orange-800'
                   }">${stop.sectionTag}</span>
                   <h3 class="font-extrabold text-base text-white">${stop.name}</h3>
+                  ${stop.riskTag ? `<span class="text-[10px] bg-rose-950 text-rose-300 border border-rose-800 px-2 py-0.5 rounded-full font-bold">${stop.riskTag}</span>` : ''}
                   ${stop.payAmount > 0 ? `<span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/50 px-2 py-0.5 rounded-full font-bold">착불 ${stop.payAmount.toLocaleString()}원</span>` : ''}
                 </div>
                 <p class="text-xs text-slate-400 font-mono mt-0.5">
-                  ${stop.goods} · ${stop.quantity}박스 <span class="text-slate-500">(${stop.roadKm}km/${stop.driveMin}분)</span>
+                  ${stop.goods} · ${stop.quantity}박스 
+                  <span class="text-sky-400/90 font-bold">(${stop.stepKm}km / 내비 ${stop.finalDriveMinutes}분)</span>
                 </p>
               </div>
             </div>
 
-            <!-- 순서 조정 및 1번 지정 버튼 -->
+            <!-- 순서 조정 및 1번 승격 버튼 -->
             ${!isDone ? `
               <div class="flex items-center gap-1">
                 <button onclick="promoteToFirst(${index})" class="touch-pill px-2 py-1 rounded-full bg-amber-600 hover:bg-amber-500 text-[10px] font-black text-slate-950">1번</button>
@@ -721,7 +791,7 @@
             ` : ''}
           </div>
 
-          <!-- 주소 정보 바 -->
+          <!-- 도로명 및 도착 예정 시각 바 -->
           <div class="bg-slate-950/80 rounded-2xl p-2.5 mb-2 flex justify-between items-center text-xs border border-slate-800/80">
             <div class="flex items-center gap-1.5 text-slate-300 truncate pr-2">
               <i class="fa-solid fa-location-dot text-sky-400 text-xs"></i>
@@ -736,17 +806,14 @@
 
           ${stop.notes ? `<div class="text-[11px] text-amber-300/80 mb-2.5 px-1 font-sans">※ ${stop.notes}</div>` : ''}
 
-          <!-- 버튼 듀오(타이틀+내비복사) 밀착 배치 + 통화 + 완료 1열 구성 -->
+          <!-- 버튼 듀오 밀착 배치 레이아웃 -->
           <div class="grid grid-cols-4 gap-2">
-            <!-- [듀오 1] 타이틀 복사 -->
             <button onclick="copyToClipboard('${titleCopyText}', '타이틀+상세정보 복사완료')" class="touch-pill bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-full text-xs font-bold text-center truncate border border-slate-700/60 shadow-sm">
               <i class="fa-regular fa-copy mr-1 text-slate-400"></i>타이틀
             </button>
-            <!-- [듀오 2] 정제 도로명 내비복사 -->
             <button onclick="copyToClipboard('${cleanRoadAddr}', '정제 도로명 복사완료 (카카오/티맵)')" class="touch-pill bg-sky-950 hover:bg-sky-900 border border-sky-800 text-sky-300 py-2.5 rounded-full text-xs font-black text-center truncate shadow-sm">
               <i class="fa-solid fa-diamond-turn-right mr-1 text-sky-400"></i>내비복사
             </button>
-            <!-- 통화 버튼 (유효 번호 없을 시 자동 비활성화) -->
             <a href="${hasValidPhone ? 'tel:' + stop.phone : 'javascript:void(0)'}" class="touch-pill py-2.5 rounded-full text-xs font-bold flex items-center justify-center border shadow-sm ${
               hasValidPhone 
                 ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700/60' 
@@ -754,7 +821,6 @@
             }">
               <i class="fa-solid fa-phone ${hasValidPhone ? 'text-emerald-400' : 'text-slate-600'} mr-1"></i>통화
             </a>
-            <!-- 하차완료 버튼 -->
             <button onclick="toggleDone(${index})" class="touch-pill ${
               isDone 
                 ? 'bg-emerald-950 border border-emerald-800 text-emerald-300' 
@@ -769,26 +835,107 @@
       });
     }
 
-    // 층수/동호수 추출 결합기
-    function buildTitleWithBuildingInfo(stop, boxBadge) {
-      let extra = "";
-      if (stop.building) {
-        extra = stop.building.trim();
-      }
-      return `${boxBadge}번 ${stop.name} ${extra}`.trim();
+    // ----------------------------------------------------
+    // 5. Leaflet 지도 렌더링 & 내비 시간 팝업 동기화
+    // ----------------------------------------------------
+    function initMap() {
+      leafletMap = L.map('map', { zoomControl: false }).setView([BASE_DEPOT.lat, BASE_DEPOT.lng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(leafletMap);
     }
 
-    // 도로명 주소 정제 (호수/동/층수 제거)
-    function sanitizeRoadAddress(addr) {
-      return addr
-        .replace(/\[\vert{}\]/g, '')
-        .replace(/(\d+동\s*\d+호|\d+호|\d+층)/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
+    function toggleMapHeight() {
+      const el = document.getElementById('map');
+      el.style.height = (el.style.height === '420px') ? '250px' : '420px';
+      
+      setTimeout(() => {
+        if (leafletMap) {
+          leafletMap.invalidateSize(true);
+          if (roadPolylineLayer) leafletMap.fitBounds(roadPolylineLayer.getBounds(), { padding: [30, 30] });
+        }
+      }, 150);
+    }
+
+    function renderMapDisplay(geoJsonRoute) {
+      if (!leafletMap) return;
+
+      markers.forEach(m => leafletMap.removeLayer(m));
+      markers = [];
+      if (roadPolylineLayer) leafletMap.removeLayer(roadPolylineLayer);
+
+      const latlngs = [[BASE_DEPOT.lat, BASE_DEPOT.lng]];
+
+      // 출발 거점 핀
+      const depotIcon = L.divIcon({
+        className: 'depot-pin',
+        html: `<div style="background-color: #3b82f6; color: white; width: 28px; height: 28px; border-radius: 9999px; border: 2.5px solid white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; box-shadow: 0 4px 6px rgba(0,0,0,0.5);"><i class="fa-solid fa-warehouse"></i></div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+      const dMarker = L.marker([BASE_DEPOT.lat, BASE_DEPOT.lng], { icon: depotIcon }).addTo(leafletMap);
+      dMarker.bindPopup(`<b>${BASE_DEPOT.name}</b><br>출차 기준: ${departureTime}`);
+      markers.push(dMarker);
+
+      // 배송지 마커 (내비 시간 완벽 동기화 팝업)
+      stops.forEach((stop, idx) => {
+        const coord = [stop.lat, stop.lng];
+        latlngs.push(coord);
+
+        const badgeText = stop.boxNos.join('/');
+        let pinColor = stop.completed ? '#10b981' : (stop.payAmount > 0 ? '#f59e0b' : '#0284c7');
+        if (!stop.completed && idx === stops.length - 1) pinColor = '#eab308';
+
+        const pinIcon = L.divIcon({
+          className: 'custom-pin',
+          html: `<div style="background-color: ${pinColor}; color: white; width: 28px; height: 28px; border-radius: 9999px; border: 2.5px solid white; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 4px 6px rgba(0,0,0,0.4);">${stop.completed ? '✓' : badgeText}</div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+
+        const m = L.marker(coord, { icon: pinIcon }).addTo(leafletMap);
+        
+        // 지도의 팝업 정보가 카드의 내비시간 및 ETA와 100% 일치
+        m.bindPopup(`
+          <div style="font-size: 12px; line-height: 1.4;">
+            <b style="color: #0284c7;">#${badgeText} ${stop.name}</b> ${stop.building ? `<span style="color:#64748b;">(${stop.building})</span>` : ''}<br>
+            <span style="color: #475569;">📍 ${stop.address}</span><br>
+            <div style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #e2e8f0;">
+              🚗 구간 내비: <b>${stop.finalDriveMinutes}분</b> (${stop.stepKm} km)<br>
+              ⏱️ 도착 예정: <b style="color: #059669;">${stop.etaArrival}</b> (하차 ${stop.unloadDuration}분)<br>
+              🏁 완료 예정: <b style="color: #4f46e5;">${stop.etaFinish}</b>
+            </div>
+          </div>
+        `);
+        markers.push(m);
+      });
+
+      // 실제 도로 궤적(GeoJSON) 또는 폴리라인 렌더링
+      if (geoJsonRoute && geoJsonRoute.coordinates) {
+        roadPolylineLayer = L.geoJSON(geoJsonRoute, {
+          style: {
+            color: '#38bdf8',
+            weight: 4.5,
+            opacity: 0.85,
+            lineJoin: 'round',
+            lineCap: 'round'
+          }
+        }).addTo(leafletMap);
+        leafletMap.fitBounds(roadPolylineLayer.getBounds(), { padding: [35, 35] });
+      } else if (latlngs.length > 1) {
+        roadPolylineLayer = L.polyline(latlngs, {
+          color: '#38bdf8',
+          weight: 4,
+          dashArray: '5, 7',
+          opacity: 0.85
+        }).addTo(leafletMap);
+        leafletMap.fitBounds(roadPolylineLayer.getBounds(), { padding: [35, 35] });
+      }
     }
 
     // ----------------------------------------------------
-    // 5. 인터랙션 및 순서 변경 제어
+    // 6. 인터랙션 및 제어 함수
     // ----------------------------------------------------
     function toggleDone(index) {
       const stop = stops[index];
@@ -800,7 +947,7 @@
         stop.completed = true;
         stop.completedAt = formatHHMM(d);
       }
-      triggerDynamicRecalculation();
+      executeNavigationRouting();
     }
 
     function moveStop(index, delta) {
@@ -812,7 +959,7 @@
       stops[index] = stops[target];
       stops[target] = tmp;
 
-      triggerDynamicRecalculation();
+      executeNavigationRouting();
     }
 
     function promoteToFirst(index) {
@@ -826,17 +973,23 @@
         stops.splice(firstUncompleted, 0, target);
       }
 
-      triggerDynamicRecalculation();
+      executeNavigationRouting();
     }
 
-    function sortByRecommendedCourse() {
+    // 초기 무유턴 추천 경로 원복
+    function restoreOriginalOrder() {
       const order = ["s_6", "s_16", "s_1_9", "s_3", "s_11", "s_7_10", "s_4", "s_5", "s_13", "s_15", "s_8", "s_17", "s_18", "s_14", "s_2", "s_12"];
       stops.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
 
       document.getElementById('btn-sort-course').className = "touch-pill px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold";
       document.getElementById('btn-sort-box').className = "touch-pill px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-medium";
 
-      triggerDynamicRecalculation();
+      executeNavigationRouting();
+      showToast("추천 순환 경로로 원복되었습니다.");
+    }
+
+    function sortByRecommendedCourse() {
+      restoreOriginalOrder();
     }
 
     function sortByBoxAsc() {
@@ -845,7 +998,7 @@
       document.getElementById('btn-sort-box').className = "touch-pill px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[11px] font-bold";
       document.getElementById('btn-sort-course').className = "touch-pill px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-medium";
 
-      triggerDynamicRecalculation();
+      executeNavigationRouting();
     }
 
     function copyAllTitles() {
@@ -869,89 +1022,12 @@
     }
 
     // ----------------------------------------------------
-    // 6. Leaflet 지도 렌더링 (0px 버그 방지)
-    // ----------------------------------------------------
-    function initMap() {
-      leafletMap = L.map('map', { zoomControl: false }).setView([BASE_DEPOT.lat, BASE_DEPOT.lng], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(leafletMap);
-    }
-
-    function toggleMapHeight() {
-      const el = document.getElementById('map');
-      el.style.height = (el.style.height === '420px') ? '250px' : '420px';
-      
-      // 0px 깨짐 방지 강제 호출
-      setTimeout(() => {
-        if (leafletMap) {
-          leafletMap.invalidateSize(true);
-          if (roadPolylineLayer) leafletMap.fitBounds(roadPolylineLayer.getBounds(), { padding: [30, 30] });
-        }
-      }, 150);
-    }
-
-    function renderMapRoute() {
-      if (!leafletMap) return;
-
-      markers.forEach(m => leafletMap.removeLayer(m));
-      markers = [];
-      if (roadPolylineLayer) leafletMap.removeLayer(roadPolylineLayer);
-
-      const latlngs = [[BASE_DEPOT.lat, BASE_DEPOT.lng]];
-
-      // 출발 거점 마커
-      const depotIcon = L.divIcon({
-        className: 'depot-pin',
-        html: `<div style="background-color: #3b82f6; color: white; width: 28px; height: 28px; border-radius: 9999px; border: 2.5px solid white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; box-shadow: 0 4px 6px rgba(0,0,0,0.5);"><i class="fa-solid fa-warehouse"></i></div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      });
-      const dMarker = L.marker([BASE_DEPOT.lat, BASE_DEPOT.lng], { icon: depotIcon }).addTo(leafletMap);
-      dMarker.bindPopup(`<b>${BASE_DEPOT.name}</b><br>출차 기준: ${departureTime}`);
-      markers.push(dMarker);
-
-      // 배송지 마커
-      stops.forEach((stop, idx) => {
-        const coord = [stop.lat, stop.lng];
-        latlngs.push(coord);
-
-        const badgeText = stop.boxNos.join('/');
-        let pinColor = stop.completed ? '#10b981' : (stop.payAmount > 0 ? '#f59e0b' : '#0284c7');
-        if (!stop.completed && idx === stops.length - 1) pinColor = '#eab308'; // 완판지
-
-        const pinIcon = L.divIcon({
-          className: 'custom-pin',
-          html: `<div style="background-color: ${pinColor}; color: white; width: 28px; height: 28px; border-radius: 9999px; border: 2.5px solid white; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; box-shadow: 0 4px 6px rgba(0,0,0,0.4);">${stop.completed ? '✓' : badgeText}</div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14]
-        });
-
-        const m = L.marker(coord, { icon: pinIcon }).addTo(leafletMap);
-        m.bindPopup(`<b>#${badgeText} ${stop.name}</b><br>${stop.address}<br>도착예정: ${stop.etaArrival}`);
-        markers.push(m);
-      });
-
-      if (latlngs.length > 1) {
-        roadPolylineLayer = L.polyline(latlngs, {
-          color: '#38bdf8',
-          weight: 4,
-          dashArray: '4, 6',
-          opacity: 0.85
-        }).addTo(leafletMap);
-        leafletMap.fitBounds(roadPolylineLayer.getBounds(), { padding: [35, 35] });
-      }
-    }
-
-    // ----------------------------------------------------
-    // 7. 모달 제어 (테트리스 & 출차조정)
+    // 7. 모달 제어 (테트리스, 출차시간, 하차시간)
     // ----------------------------------------------------
     function openTetrisModal() {
       const listEl = document.getElementById('tetris-order-list');
       listEl.innerHTML = "";
 
-      // 적재는 배송 순서의 역순 (마지막 배송지가 차 안쪽 끝)
       const reverseList = [...stops].reverse();
       reverseList.forEach((s, idx) => {
         const row = document.createElement('div');
@@ -989,7 +1065,25 @@
       if (val) {
         departureTime = val;
         closeTimeAdjustModal();
-        triggerDynamicRecalculation();
+        executeNavigationRouting();
+      }
+    }
+
+    function openUnloadAdjustModal() {
+      document.getElementById('input-unload-val').value = defaultUnloadMinutes;
+      document.getElementById('unload-modal').classList.remove('hidden');
+    }
+
+    function closeUnloadAdjustModal() {
+      document.getElementById('unload-modal').classList.add('hidden');
+    }
+
+    function applyNewUnloadDuration() {
+      const val = parseInt(document.getElementById('input-unload-val').value, 10);
+      if (val && val >= 3) {
+        defaultUnloadMinutes = val;
+        closeUnloadAdjustModal();
+        executeNavigationRouting();
       }
     }
   </script>
