@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>아이스박스 - 제주 화물 실제 도로망 관제 라우터</title>
+  <title>아이스박스 - 제주 화물 실제 도로망 관제 라우터 FINAL</title>
   
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 6 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Leaflet Map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -22,8 +25,12 @@
     .touch-pill:active {
       transform: scale(0.95);
     }
+    #map-wrapper {
+      transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
     #map {
-      height: 250px;
+      height: 100%;
+      width: 100%;
       border-radius: 1.5rem;
     }
     ::-webkit-scrollbar { width: 4px; }
@@ -33,7 +40,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
 
   <!-- 상단 헤더 바 -->
-  <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 sticky top-0 z-50 flex justify-between items-center shadow-lg">
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 sticky top-0 z-40 flex justify-between items-center shadow-lg">
     <div class="flex items-center gap-2.5">
       <div class="w-10 h-10 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 font-black text-lg shadow-inner">
         <i class="fa-solid fa-cube"></i>
@@ -77,17 +84,18 @@
     </div>
   </section>
 
-  <!-- 도로망 지도 영역 -->
-  <section class="px-3 pb-2 relative">
-    <div class="rounded-3xl overflow-hidden border border-slate-800/90 shadow-lg relative bg-slate-900">
+  <!-- 도로망 지도 영역 (isolate 적용으로 z-index 외부 유출 완벽 차단) -->
+  <section class="px-3 pb-2 relative isolate z-0">
+    <div id="map-wrapper" class="h-[250px] rounded-3xl overflow-hidden border border-slate-800/90 shadow-lg relative bg-slate-900">
       <div id="map"></div>
       
-      <div id="routing-status" class="hidden absolute top-3 left-3 z-[1000] bg-slate-900/95 border border-sky-500/50 text-sky-300 text-[10px] px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+      <!-- 내비 경로 연산 상태 인디케이터 -->
+      <div id="routing-status" class="hidden absolute top-3 left-3 z-[500] bg-slate-900/95 border border-sky-500/50 text-sky-300 text-[10px] px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
         <i class="fa-solid fa-spinner fa-spin"></i> OSRM 내비 도로망 연동 중...
       </div>
 
-      <button onclick="toggleMapHeight()" class="touch-pill absolute bottom-3 right-3 z-[1000] bg-slate-900/90 text-slate-300 text-[11px] px-3 py-1.5 rounded-full border border-slate-700 shadow-md">
-        <i class="fa-solid fa-expand mr-1"></i>지도 토글
+      <button onclick="cycleMapHeight()" id="map-toggle-btn" class="touch-pill absolute bottom-3 right-3 z-[500] bg-slate-900/90 text-slate-300 text-[11px] px-3 py-1.5 rounded-full border border-slate-700 shadow-md flex items-center gap-1">
+        <i class="fa-solid fa-expand"></i> <span>지도 확대</span>
       </button>
     </div>
   </section>
@@ -126,8 +134,8 @@
     <!-- 동적 렌더링 -->
   </main>
 
-  <!-- 상차 가이드 모달 -->
-  <div id="tetris-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+  <!-- 1톤 탑차 상차 가이드 모달 (z-[99999]로 최상단 고정) -->
+  <div id="tetris-modal" class="fixed inset-0 z-[99999] bg-black/80 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[85vh]">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
         <h3 class="font-bold text-sm text-amber-400 flex items-center gap-1.5">
@@ -138,7 +146,7 @@
       <div class="text-xs text-slate-300 space-y-3 overflow-y-auto flex-1 pr-1">
         <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
           <p class="font-bold text-amber-300">원칙: 역순 적재 (First-In, Last-Out)</p>
-          <p class="text-slate-400 text-[11px]">마지막 배송지를 탑차 안쪽에 먼저 싣고, 1~3번 첫 배송지를 문 바로 앞에 실어야 통로가 확보됩니다.</p>
+          <p class="text-slate-400 text-[11px]">마지막 배송지를 탑차 안쪽에 먼저 싣고, 1~3번 첫 배송지를 문 바로 앞에 실어야 하차 통로가 확보됩니다.</p>
         </div>
         <div class="space-y-1.5" id="tetris-order-list"></div>
       </div>
@@ -146,8 +154,8 @@
     </div>
   </div>
 
-  <!-- 출차 시간 조정 모달 -->
-  <div id="time-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+  <!-- 출차 시간 조정 모달 (z-[99999]) -->
+  <div id="time-modal" class="fixed inset-0 z-[99999] bg-black/80 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-700 w-full max-w-xs rounded-3xl p-5 shadow-2xl text-center">
       <h3 class="font-bold text-sm text-sky-400 mb-2">출차 기준시각 설정</h3>
       <p class="text-slate-400 text-xs mb-4">설정된 시각부터 각 구간 내비 시간과 하차 소요 시간이 연쇄 계산됩니다.</p>
@@ -159,8 +167,8 @@
     </div>
   </div>
 
-  <!-- 기본 하차 소요 시간 조정 모달 -->
-  <div id="unload-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
+  <!-- 기본 하차 소요 시간 조정 모달 (z-[99999]) -->
+  <div id="unload-modal" class="fixed inset-0 z-[99999] bg-black/80 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-700 w-full max-w-xs rounded-3xl p-5 shadow-2xl text-center">
       <h3 class="font-bold text-sm text-emerald-400 mb-2">기본 하차 소요 시간 변경</h3>
       <p class="text-slate-400 text-xs mb-4">표준 배송지 1개소당 기본 하차 작업 분(Minute)을 설정합니다.</p>
@@ -176,8 +184,7 @@
   </div>
 
   <script>
-    // 캐시 충돌 방지를 위한 V4 세션 키
-    const SESSION_KEY = "nohyeong18_v4";
+    const SESSION_KEY = "nohyeong18_v5";
     
     // 출발 거점 (제주시 노형동 이마트 맞은편 물류 거점)
     const BASE_DEPOT = {
@@ -193,7 +200,10 @@
     let markers = [];
     let roadPolylineLayer = null;
 
-    // 18개 실물 원장 데이터 (7·10번 정밀 좌표 반영, 오전/오후 태그 제거)
+    // 지도 표시 높이 상태 관리: 0(기본 250px), 1(확대 420px), 2(완전접기 0px)
+    let mapDisplayState = 0;
+
+    // 18개 실물 데이터 정밀 원장 (남녕로 47 실제 좌표 33.4895, 126.4815 반영)[cite: 11, 14]
     const INITIAL_18_STOPS = [
       {
         id: "s_6",
@@ -291,8 +301,8 @@
         phone: "010-5161-4983",
         riskTag: "착불8000원/야간오픈",
         notes: "7번(2-1)+10번(2-2) 합포 / 남녕고 맞은편 상가 / 착불 8,000원",
-        lat: 33.4895, // 남녕고 앞 실제 정밀 위도 보정
-        lng: 126.4815, // 남녕고 앞 실제 정밀 경도 보정
+        lat: 33.4895, // 실제 정밀 위도
+        lng: 126.4815, // 실제 정밀 경도
         payAmount: 8000,
         completed: false,
         completedAt: null
@@ -791,16 +801,35 @@
       }).addTo(leafletMap);
     }
 
-    function toggleMapHeight() {
-      const el = document.getElementById('map');
-      el.style.height = (el.style.height === '420px') ? '250px' : '420px';
+    // 지도 3단계 높이 순환: 250px -> 420px -> 0px(접기) -> 250px
+    function cycleMapHeight() {
+      const wrapper = document.getElementById('map-wrapper');
+      const btn = document.getElementById('map-toggle-btn');
       
+      mapDisplayState = (mapDisplayState + 1) % 3;
+
+      if (mapDisplayState === 0) {
+        // 기본 250px
+        wrapper.style.height = "250px";
+        wrapper.classList.remove("hidden");
+        btn.innerHTML = `<i class="fa-solid fa-expand"></i> <span>지도 확대</span>`;
+      } else if (mapDisplayState === 1) {
+        // 확대 420px
+        wrapper.style.height = "420px";
+        wrapper.classList.remove("hidden");
+        btn.innerHTML = `<i class="fa-solid fa-compress"></i> <span>지도 접기</span>`;
+      } else {
+        // 완전 접기 (목록만 보기)
+        wrapper.style.height = "0px";
+        btn.innerHTML = `<i class="fa-solid fa-map"></i> <span>지도 펼치기</span>`;
+      }
+
       setTimeout(() => {
-        if (leafletMap) {
+        if (leafletMap && mapDisplayState !== 2) {
           leafletMap.invalidateSize(true);
           if (roadPolylineLayer) leafletMap.fitBounds(roadPolylineLayer.getBounds(), { padding: [30, 30] });
         }
-      }, 150);
+      }, 300);
     }
 
     function renderMapDisplay(geoJsonRoute) {
@@ -949,7 +978,7 @@
 
     function showToast(msg) {
       const t = document.createElement("div");
-      t.className = "fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] bg-slate-900/95 border border-sky-400 text-sky-300 text-xs px-5 py-2.5 rounded-full shadow-2xl transition-all";
+      t.className = "fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] bg-slate-900/95 border border-sky-400 text-sky-300 text-xs px-5 py-2.5 rounded-full shadow-2xl transition-all";
       t.innerText = msg;
       document.body.appendChild(t);
       setTimeout(() => {
