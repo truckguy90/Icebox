@@ -3,13 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>아이스박스 - 제주 화물 실제 도로망 관제 라우터 FINAL</title>
+  <title>아이스박스 - 제주 화물 실제 도로망 관제 라우터</title>
   
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome 6 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Leaflet Map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -44,7 +41,7 @@
       <div>
         <div class="flex items-center gap-1.5">
           <h1 class="font-extrabold text-base text-sky-400 tracking-tight">아이스박스</h1>
-          <span class="text-[10px] bg-sky-950 text-sky-300 border border-sky-800/80 px-2 py-0.5 rounded-full font-semibold">내비실시간 동기화</span>
+          <span class="text-[10px] bg-sky-950 text-sky-300 border border-sky-800/80 px-2 py-0.5 rounded-full font-semibold">노형 권역 배차</span>
         </div>
         <p class="text-[11px] text-slate-400 font-mono" id="current-clock">시각 동기화 중...</p>
       </div>
@@ -80,12 +77,11 @@
     </div>
   </section>
 
-  <!-- 도로망 지도 영역 (0px 버그 방지 & 내비 안내 오버레이) -->
+  <!-- 도로망 지도 영역 -->
   <section class="px-3 pb-2 relative">
     <div class="rounded-3xl overflow-hidden border border-slate-800/90 shadow-lg relative bg-slate-900">
       <div id="map"></div>
       
-      <!-- 내비 경로 연산 상태 인디케이터 -->
       <div id="routing-status" class="hidden absolute top-3 left-3 z-[1000] bg-slate-900/95 border border-sky-500/50 text-sky-300 text-[10px] px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
         <i class="fa-solid fa-spinner fa-spin"></i> OSRM 내비 도로망 연동 중...
       </div>
@@ -130,19 +126,19 @@
     <!-- 동적 렌더링 -->
   </main>
 
-  <!-- 1톤 적재함 테트리스 가이드 모달 -->
+  <!-- 상차 가이드 모달 -->
   <div id="tetris-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl p-5 shadow-2xl flex flex-col max-h-[85vh]">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
         <h3 class="font-bold text-sm text-amber-400 flex items-center gap-1.5">
-          <i class="fa-solid fa-truck-ramp-box"></i> 1톤 탑차 테트리스 상차 가이드
+          <i class="fa-solid fa-truck-ramp-box"></i> 1톤 탑차 상차 가이드
         </h3>
         <button onclick="closeTetrisModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
       </div>
       <div class="text-xs text-slate-300 space-y-3 overflow-y-auto flex-1 pr-1">
         <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
           <p class="font-bold text-amber-300">원칙: 역순 적재 (First-In, Last-Out)</p>
-          <p class="text-slate-400 text-[11px]">오후 마지막 배송지를 탑차 가장 안쪽에 싣고, 1~3번 오전 첫 배송지를 문 바로 앞에 실어야 하차 통로가 확보됩니다.</p>
+          <p class="text-slate-400 text-[11px]">마지막 배송지를 탑차 안쪽에 먼저 싣고, 1~3번 첫 배송지를 문 바로 앞에 실어야 통로가 확보됩니다.</p>
         </div>
         <div class="space-y-1.5" id="tetris-order-list"></div>
       </div>
@@ -154,7 +150,7 @@
   <div id="time-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-700 w-full max-w-xs rounded-3xl p-5 shadow-2xl text-center">
       <h3 class="font-bold text-sm text-sky-400 mb-2">출차 기준시각 설정</h3>
-      <p class="text-slate-400 text-xs mb-4">현재 설정된 시각부터 각 구간 내비 시간과 하차 소요 시간이 연쇄 계산됩니다.</p>
+      <p class="text-slate-400 text-xs mb-4">설정된 시각부터 각 구간 내비 시간과 하차 소요 시간이 연쇄 계산됩니다.</p>
       <input type="time" id="input-dept-time" class="bg-slate-950 border border-slate-700 text-white text-base px-4 py-2 rounded-2xl outline-none mb-4 w-full text-center">
       <div class="flex gap-2">
         <button onclick="closeTimeAdjustModal()" class="flex-1 py-2 rounded-full bg-slate-800 text-slate-400 text-xs">취소</button>
@@ -180,10 +176,8 @@
   </div>
 
   <script>
-    // ----------------------------------------------------
-    // 1. 상태 변수 및 정밀 실좌표 데이터베이스
-    // ----------------------------------------------------
-    const SESSION_KEY = "nohyeong18";
+    // 캐시 충돌 방지를 위한 V4 세션 키
+    const SESSION_KEY = "nohyeong18_v4";
     
     // 출발 거점 (제주시 노형동 이마트 맞은편 물류 거점)
     const BASE_DEPOT = {
@@ -194,12 +188,12 @@
 
     let stops = [];
     let departureTime = "08:30";
-    let defaultUnloadMinutes = 6; // 기본 소량 하차 분
+    let defaultUnloadMinutes = 6;
     let leafletMap = null;
     let markers = [];
     let roadPolylineLayer = null;
 
-    // 18개 실물 송장 전수 정밀 매핑 원장
+    // 18개 실물 원장 데이터 (7·10번 정밀 좌표 반영, 오전/오후 태그 제거)
     const INITIAL_18_STOPS = [
       {
         id: "s_6",
@@ -210,7 +204,6 @@
         goods: "한우 1등급 실속혼합",
         quantity: 1,
         phone: "010-9841-5689",
-        sectionTag: "오전",
         riskTag: "산간서행",
         notes: "신비로 산간 초입 단독주택",
         lat: 33.4565,
@@ -228,7 +221,6 @@
         goods: "한우 1등급",
         quantity: 1,
         phone: "010-2691-8201",
-        sectionTag: "오전",
         riskTag: null,
         notes: "수목원 맞은편 주택가",
         lat: 33.4635,
@@ -245,8 +237,7 @@
         building: "나동 101호",
         goods: "냉장한우세트",
         quantity: 2,
-        phone: "", // 끝자리 미기재 (전화 오발신 방지)
-        sectionTag: "오전",
+        phone: "",
         riskTag: "2박스합포",
         notes: "1번(2-2) + 9번(2-1) 동일 하차지 2박스 묶음",
         lat: 33.4715,
@@ -264,7 +255,6 @@
         goods: "축산물(보자기포장)",
         quantity: 1,
         phone: "",
-        sectionTag: "오전",
         riskTag: null,
         notes: "정문 경비실 통과 지상 101동 정차",
         lat: 33.4735,
@@ -282,7 +272,6 @@
         goods: "이즈니버터 60개",
         quantity: 1,
         phone: "0504-2123-5453",
-        sectionTag: "오전",
         riskTag: "11:30점심피크회피",
         notes: "점심 피크 전 11시 이전 조기 하차 강력 권장",
         lat: 33.4805,
@@ -300,11 +289,10 @@
         goods: "냉장육류",
         quantity: 2,
         phone: "010-5161-4983",
-        sectionTag: "오전",
         riskTag: "착불8000원/야간오픈",
-        notes: "7번(2-1)+10번(2-2) 합포 / 착불 8,000원 사전입금 통화",
-        lat: 33.4828,
-        lng: 126.4801,
+        notes: "7번(2-1)+10번(2-2) 합포 / 남녕고 맞은편 상가 / 착불 8,000원",
+        lat: 33.4895, // 남녕고 앞 실제 정밀 위도 보정
+        lng: 126.4815, // 남녕고 앞 실제 정밀 경도 보정
         payAmount: 8000,
         completed: false,
         completedAt: null
@@ -318,7 +306,6 @@
         goods: "한우 4구 세트",
         quantity: 1,
         phone: "",
-        sectionTag: "오전",
         riskTag: null,
         notes: "5번(505동)과 동일 단지 연계 카트 하차",
         lat: 33.4838,
@@ -336,7 +323,6 @@
         goods: "차돌박이 구이세트",
         quantity: 1,
         phone: "0507-0148-0030",
-        sectionTag: "오전",
         riskTag: null,
         notes: "4번(504동)과 동일 단지 연계 카트 하차",
         lat: 33.4840,
@@ -354,7 +340,6 @@
         goods: "가공식품",
         quantity: 1,
         phone: "010-2744-9614",
-        sectionTag: "오후",
         riskTag: "12:00홀혼잡",
         notes: "매장 앞 쾌속 직하차",
         lat: 33.4851,
@@ -372,7 +357,6 @@
         goods: "밀싹 600g",
         quantity: 1,
         phone: "0507-0151-1968",
-        sectionTag: "오후",
         riskTag: null,
         notes: "오피스텔 고층 E/V 경유",
         lat: 33.4863,
@@ -390,7 +374,6 @@
         goods: "수산물선물",
         quantity: 1,
         phone: "",
-        sectionTag: "오후",
         riskTag: "착불7000원",
         notes: "착불 7,000원 수령 필수",
         lat: 33.4872,
@@ -408,7 +391,6 @@
         goods: "비건포기김치 3kg",
         quantity: 1,
         phone: "",
-        sectionTag: "오후",
         riskTag: "대로변단속주의",
         notes: "노형오거리 대로변 비상등 점멸 즉시 하차",
         lat: 33.4878,
@@ -426,7 +408,6 @@
         goods: "소고기/돼지고기",
         quantity: 1,
         phone: "",
-        sectionTag: "오후",
         riskTag: null,
         notes: "대로변 아파트 단지",
         lat: 33.4888,
@@ -444,7 +425,6 @@
         goods: "한우 1호 세트",
         quantity: 1,
         phone: "",
-        sectionTag: "오후",
         riskTag: null,
         notes: "아파트 고층 E/V 하차",
         lat: 33.4862,
@@ -462,7 +442,6 @@
         goods: "흑태나또",
         quantity: 1,
         phone: "",
-        sectionTag: "오후",
         riskTag: null,
         notes: "월랑마을 주택가 안길 서행",
         lat: 33.4905,
@@ -480,7 +459,6 @@
         goods: "베트남 냉동식품",
         quantity: 1,
         phone: "",
-        sectionTag: "오후",
         riskTag: "최종마감지",
         notes: "완판 최종 하차지",
         lat: 33.4915,
@@ -491,9 +469,6 @@
       }
     ];
 
-    // ----------------------------------------------------
-    // 2. 초기화 및 LocalStorage 영구 동기화
-    // ----------------------------------------------------
     window.addEventListener("DOMContentLoaded", () => {
       initMap();
       startLiveClock();
@@ -558,7 +533,6 @@
         }
       }
 
-      // 최초 실행 시 추천 순환 루프로 로드
       stops = JSON.parse(JSON.stringify(INITIAL_18_STOPS));
       executeNavigationRouting();
     }
@@ -572,14 +546,10 @@
       executeNavigationRouting();
     }
 
-    // ----------------------------------------------------
-    // 3. 실제 도로망(OSRM) 내비게이션 라우팅 & 화물 물리 연산
-    // ----------------------------------------------------
     async function executeNavigationRouting() {
       const statusBox = document.getElementById('routing-status');
       statusBox.classList.remove('hidden');
 
-      // 거점 -> 1번 -> ... -> N번 전체 좌표 배열
       const allWaypoints = [BASE_DEPOT, ...stops];
       const coordString = allWaypoints.map(w => `${w.lng},${w.lat}`).join(';');
       const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&steps=false`;
@@ -595,18 +565,17 @@
           const route = data.routes[0];
           routeGeoJSON = route.geometry;
 
-          // 구간별 실제 도로 거리 및 시간 배분
           if (route.legs && route.legs.length === stops.length) {
             route.legs.forEach((leg, idx) => {
               const stop = stops[idx];
               stop.realNaviKm = parseFloat((leg.distance / 1000).toFixed(2));
-              stop.rawNaviSec = leg.duration; // 승용차 기준 초
+              stop.rawNaviSec = leg.duration;
             });
             osrmSuccess = true;
           }
         }
       } catch (err) {
-        console.warn("OSRM 실시간 도로망 응답 지연, 내부 물리엔진 대체:", err);
+        console.warn("OSRM 도로망 연동 지연, 내부 엔진 대체:", err);
       }
 
       statusBox.classList.add('hidden');
@@ -616,22 +585,19 @@
       saveToLocalStorage();
     }
 
-    // 화물차 물리 보정 계수 결합 및 연쇄 타임라인 연산
     function computeTimelineAndPhysicalCorrections(isOsrmLive) {
       let accumulatedDistanceKm = 0;
       let currentTime = parseHHMM(departureTime);
 
       stops.forEach((stop, idx) => {
-        // 1. 하차 소요 시간 산정
         if (stop.quantity >= 2) {
-          stop.unloadDuration = 9; // 합포/2박스 이상
+          stop.unloadDuration = 9;
         } else if (stop.building && (stop.building.includes("호") || stop.building.includes("층") || stop.building.includes("아파트"))) {
-          stop.unloadDuration = defaultUnloadMinutes + 2; // E/V 경유
+          stop.unloadDuration = defaultUnloadMinutes + 2;
         } else {
-          stop.unloadDuration = defaultUnloadMinutes; // 쾌속 인계
+          stop.unloadDuration = defaultUnloadMinutes;
         }
 
-        // 2. 주행 거리 및 내비 기본 시간 산출
         let baseDriveMin = 4;
         let legDistanceKm = 1.0;
 
@@ -639,7 +605,6 @@
           baseDriveMin = Math.round(stop.rawNaviSec / 60);
           legDistanceKm = stop.realNaviKm;
         } else {
-          // OSRM 장애 시 동적 도로 매트릭스 Fallback
           const prevCoord = (idx === 0) ? BASE_DEPOT : stops[idx - 1];
           const straight = getHaversineKm(prevCoord.lat, prevCoord.lng, stop.lat, stop.lng);
           legDistanceKm = parseFloat(Math.max(0.6, straight * 1.32).toFixed(1));
@@ -649,22 +614,20 @@
         stop.stepKm = legDistanceKm;
         accumulatedDistanceKm += legDistanceKm;
 
-        // 3. 1톤 화물탑차 도로 환경 계수 (K_road) & 화물 특성 계수 (K_cargo)
-        let kRoad = 1.35; // 시내 신호 밀집 기본
+        let kRoad = 1.35;
         if (stop.address.includes("1100로") || stop.address.includes("516로") || stop.address.includes("고사마루길")) {
-          kRoad = 1.55; // 중산간 등판 부하
+          kRoad = 1.55;
         } else if (stop.address.includes("평화로") || stop.address.includes("번영로")) {
           kRoad = 1.15;
         }
 
         let kCargo = 1.0;
         if (stop.goods.includes("사과") || stop.goods.includes("과일") || stop.goods.includes("한우")) {
-          kCargo = 1.15; // 신선육류/과일 방지턱 감속
+          kCargo = 1.15;
         }
 
         stop.finalDriveMinutes = Math.max(3, Math.round(baseDriveMin * kRoad * kCargo));
 
-        // 4. 연쇄 리스케줄링 (하차완료 박제 시각 적용)
         if (stop.completed && stop.completedAt) {
           currentTime = parseHHMM(stop.completedAt);
           stop.etaArrival = stop.completedAt;
@@ -679,7 +642,6 @@
         }
       });
 
-      // 대시보드 지표 갱신
       const totalBoxes = stops.reduce((sum, s) => sum + s.quantity, 0);
       const doneBoxes = stops.filter(s => s.completed).reduce((sum, s) => sum + s.quantity, 0);
       document.getElementById('stat-count').innerText = `${doneBoxes} / ${totalBoxes}`;
@@ -713,9 +675,6 @@
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
 
-    // ----------------------------------------------------
-    // 4. UI 카드 렌더링 & 버튼 듀오(Duo) 밀착 배치
-    // ----------------------------------------------------
     function renderCards() {
       const container = document.getElementById('card-list-container');
       container.innerHTML = "";
@@ -726,12 +685,8 @@
         const isFinal = (index === stops.length - 1);
         const isLarge = (stop.quantity >= 2);
 
-        // 타이틀 복사: 순번 + 배송지명 + 건물상세
         const titleCopyText = `${boxBadge}번 ${stop.name} ${stop.building || ''}`.trim();
-        // 내비 복사: 정제 도로명 주소만 복사
         const cleanRoadAddr = stop.address.replace(/\[\vert{}\]/g, '').replace(/(\d+동\s*\d+호|\d+호|\d+층)/g, '').replace(/\s{2,}/g, ' ').trim();
-
-        // 전화번호 오발신 방지
         const hasValidPhone = stop.phone && stop.phone.replace(/[^0-9]/g, '').length >= 9 && !stop.phone.includes("****");
 
         const card = document.createElement('div');
@@ -752,7 +707,6 @@
         card.innerHTML = `
           <div class="flex items-start justify-between gap-2 mb-2">
             <div class="flex items-center gap-2.5">
-              <!-- 박스 번호 배지 -->
               <div class="flex flex-col items-center">
                 <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">BOX</span>
                 <span class="px-2.5 py-1 rounded-2xl flex items-center justify-center text-sm font-black border ${
@@ -767,9 +721,6 @@
               <div>
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="text-xs font-black text-slate-400 font-mono">[순번 ${index + 1}]</span>
-                  <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    stop.sectionTag === '오전' ? 'bg-sky-950 text-sky-300 border border-sky-800' : 'bg-orange-950 text-orange-300 border border-orange-800'
-                  }">${stop.sectionTag}</span>
                   <h3 class="font-extrabold text-base text-white">${stop.name}</h3>
                   ${stop.riskTag ? `<span class="text-[10px] bg-rose-950 text-rose-300 border border-rose-800 px-2 py-0.5 rounded-full font-bold">${stop.riskTag}</span>` : ''}
                   ${stop.payAmount > 0 ? `<span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/50 px-2 py-0.5 rounded-full font-bold">착불 ${stop.payAmount.toLocaleString()}원</span>` : ''}
@@ -781,7 +732,6 @@
               </div>
             </div>
 
-            <!-- 순서 조정 및 1번 승격 버튼 -->
             ${!isDone ? `
               <div class="flex items-center gap-1">
                 <button onclick="promoteToFirst(${index})" class="touch-pill px-2 py-1 rounded-full bg-amber-600 hover:bg-amber-500 text-[10px] font-black text-slate-950">1번</button>
@@ -791,7 +741,6 @@
             ` : ''}
           </div>
 
-          <!-- 도로명 및 도착 예정 시각 바 -->
           <div class="bg-slate-950/80 rounded-2xl p-2.5 mb-2 flex justify-between items-center text-xs border border-slate-800/80">
             <div class="flex items-center gap-1.5 text-slate-300 truncate pr-2">
               <i class="fa-solid fa-location-dot text-sky-400 text-xs"></i>
@@ -806,7 +755,6 @@
 
           ${stop.notes ? `<div class="text-[11px] text-amber-300/80 mb-2.5 px-1 font-sans">※ ${stop.notes}</div>` : ''}
 
-          <!-- 버튼 듀오 밀착 배치 레이아웃 -->
           <div class="grid grid-cols-4 gap-2">
             <button onclick="copyToClipboard('${titleCopyText}', '타이틀+상세정보 복사완료')" class="touch-pill bg-slate-800 hover:bg-slate-700 text-slate-200 py-2.5 rounded-full text-xs font-bold text-center truncate border border-slate-700/60 shadow-sm">
               <i class="fa-regular fa-copy mr-1 text-slate-400"></i>타이틀
@@ -835,9 +783,6 @@
       });
     }
 
-    // ----------------------------------------------------
-    // 5. Leaflet 지도 렌더링 & 내비 시간 팝업 동기화
-    // ----------------------------------------------------
     function initMap() {
       leafletMap = L.map('map', { zoomControl: false }).setView([BASE_DEPOT.lat, BASE_DEPOT.lng], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -867,7 +812,6 @@
 
       const latlngs = [[BASE_DEPOT.lat, BASE_DEPOT.lng]];
 
-      // 출발 거점 핀
       const depotIcon = L.divIcon({
         className: 'depot-pin',
         html: `<div style="background-color: #3b82f6; color: white; width: 28px; height: 28px; border-radius: 9999px; border: 2.5px solid white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; box-shadow: 0 4px 6px rgba(0,0,0,0.5);"><i class="fa-solid fa-warehouse"></i></div>`,
@@ -878,7 +822,6 @@
       dMarker.bindPopup(`<b>${BASE_DEPOT.name}</b><br>출차 기준: ${departureTime}`);
       markers.push(dMarker);
 
-      // 배송지 마커 (내비 시간 완벽 동기화 팝업)
       stops.forEach((stop, idx) => {
         const coord = [stop.lat, stop.lng];
         latlngs.push(coord);
@@ -896,7 +839,6 @@
 
         const m = L.marker(coord, { icon: pinIcon }).addTo(leafletMap);
         
-        // 지도의 팝업 정보가 카드의 내비시간 및 ETA와 100% 일치
         m.bindPopup(`
           <div style="font-size: 12px; line-height: 1.4;">
             <b style="color: #0284c7;">#${badgeText} ${stop.name}</b> ${stop.building ? `<span style="color:#64748b;">(${stop.building})</span>` : ''}<br>
@@ -911,7 +853,6 @@
         markers.push(m);
       });
 
-      // 실제 도로 궤적(GeoJSON) 또는 폴리라인 렌더링
       if (geoJsonRoute && geoJsonRoute.coordinates) {
         roadPolylineLayer = L.geoJSON(geoJsonRoute, {
           style: {
@@ -934,9 +875,6 @@
       }
     }
 
-    // ----------------------------------------------------
-    // 6. 인터랙션 및 제어 함수
-    // ----------------------------------------------------
     function toggleDone(index) {
       const stop = stops[index];
       if (stop.completed) {
@@ -976,7 +914,6 @@
       executeNavigationRouting();
     }
 
-    // 초기 무유턴 추천 경로 원복
     function restoreOriginalOrder() {
       const order = ["s_6", "s_16", "s_1_9", "s_3", "s_11", "s_7_10", "s_4", "s_5", "s_13", "s_15", "s_8", "s_17", "s_18", "s_14", "s_2", "s_12"];
       stops.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
@@ -1021,9 +958,6 @@
       }, 1300);
     }
 
-    // ----------------------------------------------------
-    // 7. 모달 제어 (테트리스, 출차시간, 하차시간)
-    // ----------------------------------------------------
     function openTetrisModal() {
       const listEl = document.getElementById('tetris-order-list');
       listEl.innerHTML = "";
@@ -1037,9 +971,7 @@
             <span class="w-5 h-5 rounded-full bg-slate-700 text-slate-300 text-[10px] flex items-center justify-center font-bold">${idx + 1}</span>
             <span class="font-bold text-white">#${s.boxNos.join(',')} ${s.name}</span>
           </div>
-          <span class="text-[10px] px-2 py-0.5 rounded-full ${
-            s.sectionTag === '오전' ? 'bg-sky-950 text-sky-300' : 'bg-orange-950 text-orange-300'
-          }">${s.sectionTag} (${idx < 3 ? '적재함 깊숙이' : (idx > reverseList.length - 4 ? '문 앞 바로 하차' : '중간 적재')})</span>
+          <span class="text-[10px] text-slate-400">${idx < 3 ? '적재함 깊숙이' : (idx > reverseList.length - 4 ? '문 앞 바로 하차' : '중간 적재')}</span>
         `;
         listEl.appendChild(row);
       });
